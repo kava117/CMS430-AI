@@ -1,3 +1,4 @@
+"""Step 7 tests — full Flask app with mocked search backend."""
 import json
 from unittest.mock import patch
 
@@ -20,6 +21,7 @@ class TestFindPathValidation:
     def test_missing_json_body(self, client):
         resp = client.post("/api/find-path", content_type="text/plain", data="hello")
         assert resp.status_code == 400
+        assert resp.get_json()["success"] is False
 
     def test_empty_start(self, client):
         resp = client.post(
@@ -49,7 +51,7 @@ class TestFindPathValidation:
 
 class TestFindPathBehavior:
     @patch("app.search_find_path")
-    def test_successful_search(self, mock_search, client):
+    def test_successful_search_returns_200(self, mock_search, client):
         mock_search.return_value = {
             "success": True,
             "path": ["A", "B"],
@@ -66,7 +68,7 @@ class TestFindPathBehavior:
         assert body["path"] == ["A", "B"]
 
     @patch("app.search_find_path")
-    def test_article_not_found(self, mock_search, client):
+    def test_article_not_found_returns_404(self, mock_search, client):
         mock_search.return_value = {
             "success": False,
             "path": None,
@@ -80,7 +82,7 @@ class TestFindPathBehavior:
         assert resp.status_code == 404
 
     @patch("app.search_find_path", side_effect=Exception("boom"))
-    def test_search_exception(self, mock_search, client):
+    def test_search_exception_returns_500(self, mock_search, client):
         resp = client.post(
             "/api/find-path",
             data=json.dumps({"start": "A", "end": "B"}),
@@ -88,6 +90,20 @@ class TestFindPathBehavior:
         )
         assert resp.status_code == 500
         assert resp.get_json()["message"] == "Internal server error"
+
+    @patch("app.search_find_path")
+    def test_no_path_found_returns_404(self, mock_search, client):
+        mock_search.return_value = {
+            "success": False,
+            "path": None,
+            "message": "No path found within depth limit",
+        }
+        resp = client.post(
+            "/api/find-path",
+            data=json.dumps({"start": "A", "end": "B"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 404
 
 
 class TestCORS:
@@ -112,7 +128,7 @@ class TestCORS:
 
 class TestWhitespaceTrimming:
     @patch("app.search_find_path")
-    def test_trimmed_values_passed(self, mock_search, client):
+    def test_trimmed_values_passed_to_search(self, mock_search, client):
         mock_search.return_value = {
             "success": True,
             "path": ["A", "B"],
