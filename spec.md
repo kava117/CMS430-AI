@@ -203,8 +203,46 @@ For popular pages, the number of backlinks can be very large. For the first vers
 - No need for parallel processing or async operations
 
 ### Caching
-- No caching implementation required for the first version
-- All searches should be performed fresh
+
+The application uses a SQLite-based cache to avoid redundant Wikipedia API calls for previously fetched links.
+
+#### Database
+
+- File: `links_cache.db` (created automatically on first use)
+- Uses Python's built-in `sqlite3` module (no additional dependencies)
+
+#### Schema
+
+```sql
+CREATE TABLE IF NOT EXISTS links (
+    source TEXT NOT NULL,
+    target TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (source, target, direction)
+);
+CREATE INDEX IF NOT EXISTS idx_source_direction ON links(source, direction);
+```
+
+- `source`: the article whose links were fetched
+- `target`: a linked article
+- `direction`: `"forward"` or `"backward"`, so the two link types are stored independently
+- `cached_at`: timestamp for potential future cache expiration
+
+#### Cache API (`cache.py`)
+
+| Function | Description |
+|---|---|
+| `init_db()` | Create the database and tables if they don't exist. Idempotent. |
+| `get_cached_links(title, direction) -> set[str] \| None` | Return cached link titles, or `None` if the article has not been cached yet. An empty set is a valid cached result (distinguishable from `None`). |
+| `cache_links(title, links, direction)` | Store a set of links for the given article and direction. |
+| `clear_cache()` | Delete all rows from the cache table. |
+
+#### Integration with Wikipedia API
+
+- `get_forward_links()` checks the cache first. On a cache miss it fetches from the API, stores the result, then returns it.
+- `get_backward_links()` behaves the same way.
+- `article_exists()` is **not** cached (existence checks are cheap and should stay fresh).
 
 ### Code Organization
 
@@ -214,6 +252,7 @@ project/
 ├── app.py                 # Flask application entry point
 ├── search.py              # Bidirectional search implementation
 ├── wikipedia_api.py       # Wikimedia API wrapper functions
+├── cache.py               # SQLite caching layer for Wikipedia links
 ├── static/
 │   ├── index.html        # Main HTML page
 │   ├── style.css         # Styling
@@ -274,7 +313,7 @@ Note: Performance heavily depends on article popularity and API response times.
 
 ## Future Enhancements (Not Required for First Version)
 
-- Caching of article links to reduce API calls
+- Cache expiration / TTL-based invalidation
 - Pre-computed database of page relationships
 - A* or other heuristic search algorithms
 - Multi-threading for parallel frontier exploration

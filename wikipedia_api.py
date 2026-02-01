@@ -1,12 +1,22 @@
 import requests
 
+import cache
+
 API_URL = "https://en.wikipedia.org/w/api.php"
 HEADERS = {"User-Agent": "WikipediaChainFinder/1.0 (CMS430-AI project)"}
 TIMEOUT = 15
 
+# Initialize the cache database on module load
+cache.init_db()
+
 
 def get_forward_links(title: str) -> set[str]:
     """Return the set of article titles that the given article links to."""
+    # Check cache first
+    cached = cache.get_cached_links(title, "forward")
+    if cached is not None:
+        return cached
+
     links = set()
     params = {
         "action": "query",
@@ -28,11 +38,18 @@ def get_forward_links(title: str) -> set[str]:
             break
         params.update(resp["continue"])
 
+    # Cache the result before returning
+    cache.cache_links(title, links, "forward")
     return links
 
 
 def get_backward_links(title: str) -> set[str]:
     """Return the set of article titles that link to the given article."""
+    # Check cache first
+    cached = cache.get_cached_links(title, "backward")
+    if cached is not None:
+        return cached
+
     links = set()
     params = {
         "action": "query",
@@ -54,6 +71,8 @@ def get_backward_links(title: str) -> set[str]:
             break
         params.update(resp["continue"])
 
+    # Cache the result before returning
+    cache.cache_links(title, links, "backward")
     return links
 
 

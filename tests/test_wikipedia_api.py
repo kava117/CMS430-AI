@@ -4,7 +4,15 @@ from unittest.mock import patch, MagicMock
 import pytest
 import requests
 
+import cache
 import wikipedia_api
+
+
+@pytest.fixture(autouse=True)
+def clear_cache_before_test():
+    """Clear the cache before each test to ensure isolation."""
+    cache.clear_cache()
+    yield
 
 
 # ---------------------------------------------------------------------------
