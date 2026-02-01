@@ -56,33 +56,35 @@ Python 3.x
 
 **`solve_lights_out_bfs(n: int) -> tuple`**
 - Implements Breadth-First Search
-- **Returns**: 
-  - Tuple of button coordinates in press order: `((r1, c1), (r2, c2), ...)`
-  - `None` if no solution exists
-  - Number of nodes processed
+- **Returns**: `(solution, nodes_expanded, nodes_created)`
+  - `solution`: Tuple of button coordinates in press order: `((r1, c1), (r2, c2), ...)`, or `None` if no solution exists
+  - `nodes_expanded`: Number of states dequeued and whose successors were generated
+  - `nodes_created`: Total number of successor states generated (before duplicate filtering)
 - **Tracking**: Maintain visited states to avoid cycles
-- **Queue elements**: `(state, pressed_buttons_set, solution_path, nodes_processed)`
+- **Queue elements**: `(state, pressed_buttons_set, solution_path)`
 
 **`solve_lights_out_iddfs(n: int, max_depth: int = 20) -> tuple`**
 - Implements Iterative Deepening Depth-First Search
 - Progressively increases depth limit from 0 to `max_depth`
-- **Returns**: 
-  - Tuple of button coordinates in press order
-  - `None` if no solution found within `max_depth`
-  - Total number of nodes processed across all iterations
-- **Helper function needed**: `dfs_limited(state, pressed, path, depth_limit, current_depth, nodes_processed)`
+- **Returns**: `(solution, nodes_expanded, nodes_created)`
+  - `solution`: Tuple of button coordinates in press order, or `None` if no solution found within `max_depth`
+  - `nodes_expanded`: Total nodes expanded across all depth iterations
+  - `nodes_created`: Total nodes created across all depth iterations
+- **Helper function needed**: `dfs_limited(state, pressed, path, depth_limit, current_depth, n)` returning `(solution, expanded, created)`
 
 #### 4. Performance Tracking
 
 **`compare_algorithms(grid_sizes: list) -> dict`**
 - Tests both algorithms on multiple grid sizes
-- **Input**: List of N values (e.g., `[2, 3, 4, 5]`)
+- **Input**: List of N values (e.g., `[2, 3, 4]`)
 - **Returns**: Dictionary with results
   ```python
   {
-      'grid_sizes': [2, 3, 4, 5],
-      'bfs_nodes': [nodes_for_2x2, nodes_for_3x3, ...],
-      'iddfs_nodes': [nodes_for_2x2, nodes_for_3x3, ...]
+      'grid_sizes': [2, 3, 4],
+      'bfs_expanded': [expanded_for_2x2, expanded_for_3x3, ...],
+      'bfs_created': [created_for_2x2, created_for_3x3, ...],
+      'iddfs_expanded': [expanded_for_2x2, expanded_for_3x3, ...],
+      'iddfs_created': [created_for_2x2, created_for_3x3, ...]
   }
   ```
 
@@ -97,10 +99,10 @@ Python 3.x
 - Shows the sequence of grid states as each button is pressed
 
 **`plot_performance(results: dict) -> None`**
-- Creates line plot comparing BFS vs IDDFS
+- Creates line plot comparing nodes expanded vs nodes created
 - **X-axis**: Grid size (N)
-- **Y-axis**: Number of nodes processed
-- **Two lines**: One for BFS, one for IDDFS
+- **Y-axis**: Number of nodes
+- **Four lines**: BFS Expanded, BFS Created, IDDFS Expanded, IDDFS Created
 - Save plot as `performance_comparison.png`
 - Use matplotlib for plotting
 
@@ -177,12 +179,12 @@ if __name__ == "__main__":
 ### Console Output
 ```
 Testing 2×2 grid...
-BFS: Solution found with 4 button presses, 15 nodes processed
-IDDFS: Solution found with 4 button presses, 23 nodes processed
+BFS: Solution found with 4 button presses, 12 nodes expanded, 24 nodes created
+IDDFS: Solution found with 4 button presses, 40 nodes expanded, 69 nodes created
 
 Testing 3×3 grid...
-BFS: Solution found with 6 button presses, 124 nodes processed
-IDDFS: Solution found with 6 button presses, 89 nodes processed
+BFS: Solution found with 5 button presses, 158 nodes expanded, 680 nodes created
+IDDFS: Solution found with 5 button presses, 2701 nodes expanded, 4651 nodes created
 
 ...
 
@@ -203,8 +205,8 @@ Press button at (0, 2):
 
 ### Graph Output
 - File: `performance_comparison.png`
-- Line plot with grid size on X-axis, nodes processed on Y-axis
-- Two lines clearly labeled "BFS" and "IDDFS"
+- Line plot with grid size on X-axis, nodes on Y-axis
+- Four lines: BFS Expanded, BFS Created, IDDFS Expanded, IDDFS Created
 - Legend, axis labels, title included
 
 ## Why Iterative Deepening is Suitable

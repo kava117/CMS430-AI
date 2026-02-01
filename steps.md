@@ -415,9 +415,10 @@ Implement the BFS algorithm to solve the puzzle.
    - Use `collections.deque` as the BFS queue.
    - Queue elements: `(state, pressed_set, solution_path)`.
    - Track visited states with a `set` to avoid revisiting.
-   - Track number of nodes processed (incremented each time a state is dequeued).
-   - On finding a goal state, return `(solution_path, nodes_processed)`.
-   - If the queue is exhausted, return `(None, nodes_processed)`.
+   - Track **nodes expanded** (incremented each time a state is dequeued and its successors generated).
+   - Track **nodes created** (incremented each time a successor state is generated, before duplicate filtering).
+   - On finding a goal state, return `(solution_path, nodes_expanded, nodes_created)`.
+   - If the queue is exhausted, return `(None, nodes_expanded, nodes_created)`.
    - The `solution_path` is a tuple of `(row, col)` button presses in order.
 
 **Tests:**
@@ -431,7 +432,7 @@ import lightsout
 
 def test_bfs_1x1():
     """1×1 grid: pressing the single button solves it."""
-    solution, nodes = lightsout.solve_lights_out_bfs(1)
+    solution, expanded, created = lightsout.solve_lights_out_bfs(1)
     assert solution is not None
     assert len(solution) == 1
     assert solution[0] == (0, 0)
@@ -439,7 +440,7 @@ def test_bfs_1x1():
 
 def test_bfs_2x2():
     """2×2 grid should be solvable."""
-    solution, nodes = lightsout.solve_lights_out_bfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_bfs(2)
     assert solution is not None
     assert isinstance(solution, tuple)
     assert len(solution) > 0
@@ -447,7 +448,7 @@ def test_bfs_2x2():
 
 def test_bfs_2x2_solution_is_valid():
     """Applying the BFS solution to a 2×2 grid should produce the goal state."""
-    solution, nodes = lightsout.solve_lights_out_bfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_bfs(2)
     state = lightsout.make_initial_state(2)
     for row, col in solution:
         state = lightsout.press_button(state, row, col, 2)
@@ -456,7 +457,7 @@ def test_bfs_2x2_solution_is_valid():
 
 def test_bfs_3x3_solution_is_valid():
     """Applying the BFS solution to a 3×3 grid should produce the goal state."""
-    solution, nodes = lightsout.solve_lights_out_bfs(3)
+    solution, expanded, created = lightsout.solve_lights_out_bfs(3)
     assert solution is not None
     state = lightsout.make_initial_state(3)
     for row, col in solution:
@@ -464,28 +465,36 @@ def test_bfs_3x3_solution_is_valid():
     assert lightsout.is_goal(state)
 
 
-def test_bfs_returns_nodes_processed():
-    """BFS should return a positive node count."""
-    solution, nodes = lightsout.solve_lights_out_bfs(2)
-    assert isinstance(nodes, int)
-    assert nodes > 0
+def test_bfs_returns_expanded_and_created():
+    """BFS should return positive counts for both expanded and created."""
+    solution, expanded, created = lightsout.solve_lights_out_bfs(2)
+    assert isinstance(expanded, int)
+    assert isinstance(created, int)
+    assert expanded > 0
+    assert created > 0
+
+
+def test_bfs_created_gte_expanded():
+    """Nodes created should be >= nodes expanded."""
+    solution, expanded, created = lightsout.solve_lights_out_bfs(2)
+    assert created >= expanded
 
 
 def test_bfs_solution_has_no_duplicates():
     """Each button should be pressed at most once in the solution."""
-    solution, nodes = lightsout.solve_lights_out_bfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_bfs(2)
     assert len(solution) == len(set(solution))
 
 
-def test_bfs_1x1_nodes():
-    """1×1 should require very few nodes."""
-    solution, nodes = lightsout.solve_lights_out_bfs(1)
-    assert nodes <= 5
+def test_bfs_1x1_expanded():
+    """1×1 should require very few expanded nodes."""
+    solution, expanded, created = lightsout.solve_lights_out_bfs(1)
+    assert expanded <= 5
 
 
 def test_bfs_solution_is_tuple():
     """Solution should be a tuple of (row, col) tuples."""
-    solution, nodes = lightsout.solve_lights_out_bfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_bfs(2)
     assert isinstance(solution, tuple)
     for button in solution:
         assert isinstance(button, tuple)
@@ -494,14 +503,14 @@ def test_bfs_solution_is_tuple():
 
 Run: `pytest tests/test_step4.py -v`
 
-All 8 tests must pass.
+All 9 tests must pass.
 
 **Acceptance criteria:**
 - BFS finds valid solutions for 1×1, 2×2, and 3×3 grids.
 - Applying the returned solution to the initial state produces the goal state.
 - No button is pressed more than once.
-- Node count is returned as a positive integer.
-- `pytest tests/test_step4.py -v` passes all 8 tests.
+- Both nodes_expanded and nodes_created are returned as positive integers.
+- `pytest tests/test_step4.py -v` passes all 9 tests.
 
 ---
 
@@ -511,19 +520,20 @@ Implement the IDDFS algorithm.
 
 **Tasks:**
 1. In `lightsout.py`, implement `dfs_limited(state, pressed, path, depth_limit, current_depth, n)`:
-   - If `is_goal(state)`, return `(tuple(path), 1)` (the solution path and 1 node processed).
-   - If `current_depth >= depth_limit`, return `(None, 1)`.
+   - If `is_goal(state)`, return `(tuple(path), 0, 0)` (the solution path, 0 expanded, 0 created).
+   - If `current_depth >= depth_limit`, return `(None, 0, 0)`.
    - For each successor, recursively call `dfs_limited` with incremented depth.
-   - Accumulate total nodes processed across recursive calls.
-   - Return the first solution found, or `(None, total_nodes)` if none found at this depth.
+   - Track **nodes expanded** (count 1 for this node being expanded, plus children's expanded counts).
+   - Track **nodes created** (count each successor generated, plus children's created counts).
+   - Return the first solution found, or `(None, total_expanded, total_created)` if none found at this depth.
 
 2. In `lightsout.py`, implement `solve_lights_out_iddfs(n, max_depth=20)`:
    - Start from the initial all-ON state.
    - For each depth limit from 0 to `max_depth`:
      - Call `dfs_limited` with the initial state.
-     - If a solution is found, return `(solution, total_nodes)`.
-   - Accumulate total nodes processed across all depth iterations.
-   - If no solution found within `max_depth`, return `(None, total_nodes)`.
+     - If a solution is found, return `(solution, total_expanded, total_created)`.
+   - Accumulate total expanded and created across all depth iterations.
+   - If no solution found within `max_depth`, return `(None, total_expanded, total_created)`.
 
 **Tests:**
 
@@ -536,7 +546,7 @@ import lightsout
 
 def test_iddfs_1x1():
     """1×1 grid: pressing the single button solves it."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(1)
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(1)
     assert solution is not None
     assert len(solution) == 1
     assert solution[0] == (0, 0)
@@ -544,7 +554,7 @@ def test_iddfs_1x1():
 
 def test_iddfs_2x2():
     """2×2 grid should be solvable."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(2)
     assert solution is not None
     assert isinstance(solution, tuple)
     assert len(solution) > 0
@@ -552,7 +562,7 @@ def test_iddfs_2x2():
 
 def test_iddfs_2x2_solution_is_valid():
     """Applying the IDDFS solution to a 2×2 grid should produce the goal state."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(2)
     state = lightsout.make_initial_state(2)
     for row, col in solution:
         state = lightsout.press_button(state, row, col, 2)
@@ -561,7 +571,7 @@ def test_iddfs_2x2_solution_is_valid():
 
 def test_iddfs_3x3_solution_is_valid():
     """Applying the IDDFS solution to a 3×3 grid should produce the goal state."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(3)
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(3)
     assert solution is not None
     state = lightsout.make_initial_state(3)
     for row, col in solution:
@@ -569,29 +579,37 @@ def test_iddfs_3x3_solution_is_valid():
     assert lightsout.is_goal(state)
 
 
-def test_iddfs_returns_nodes_processed():
-    """IDDFS should return a positive node count."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(2)
-    assert isinstance(nodes, int)
-    assert nodes > 0
+def test_iddfs_returns_expanded_and_created():
+    """IDDFS should return positive counts for both expanded and created."""
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(2)
+    assert isinstance(expanded, int)
+    assert isinstance(created, int)
+    assert expanded > 0
+    assert created > 0
+
+
+def test_iddfs_created_gte_expanded():
+    """Nodes created should be >= nodes expanded."""
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(2)
+    assert created >= expanded
 
 
 def test_iddfs_solution_has_no_duplicates():
     """Each button should be pressed at most once in the solution."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(2)
     assert len(solution) == len(set(solution))
 
 
 def test_iddfs_max_depth_zero_no_solution():
     """max_depth=0 should only find solutions if the initial state is already the goal."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(2, max_depth=0)
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(2, max_depth=0)
     # 2×2 all-ON is not the goal, so no solution at depth 0
     assert solution is None
 
 
 def test_iddfs_solution_is_tuple():
     """Solution should be a tuple of (row, col) tuples."""
-    solution, nodes = lightsout.solve_lights_out_iddfs(2)
+    solution, expanded, created = lightsout.solve_lights_out_iddfs(2)
     assert isinstance(solution, tuple)
     for button in solution:
         assert isinstance(button, tuple)
@@ -600,30 +618,31 @@ def test_iddfs_solution_is_tuple():
 
 def test_bfs_and_iddfs_same_length():
     """BFS and IDDFS should find solutions of the same length (both optimal)."""
-    bfs_sol, _ = lightsout.solve_lights_out_bfs(2)
-    iddfs_sol, _ = lightsout.solve_lights_out_iddfs(2)
+    bfs_sol, _, _ = lightsout.solve_lights_out_bfs(2)
+    iddfs_sol, _, _ = lightsout.solve_lights_out_iddfs(2)
     assert len(bfs_sol) == len(iddfs_sol)
 
 
 def test_dfs_limited_at_goal():
     """dfs_limited should immediately return when given the goal state."""
     goal = ((False, False), (False, False))
-    solution, nodes = lightsout.dfs_limited(goal, frozenset(), [], 5, 0, 2)
+    solution, expanded, created = lightsout.dfs_limited(goal, frozenset(), [], 5, 0, 2)
     assert solution is not None
     assert len(solution) == 0  # no presses needed
 ```
 
 Run: `pytest tests/test_step5.py -v`
 
-All 10 tests must pass.
+All 11 tests must pass.
 
 **Acceptance criteria:**
 - IDDFS finds valid solutions for 1×1, 2×2, and 3×3 grids.
 - Applying the returned solution to the initial state produces the goal state.
 - No button is pressed more than once.
+- Both nodes_expanded and nodes_created are returned as positive integers.
 - IDDFS with `max_depth=0` correctly returns `None` when the initial state is not the goal.
 - BFS and IDDFS find solutions of the same length.
-- `pytest tests/test_step5.py -v` passes all 10 tests.
+- `pytest tests/test_step5.py -v` passes all 11 tests.
 
 ---
 
@@ -695,7 +714,7 @@ def test_print_grid_mixed_state(capsys):
 
 def test_print_solution_runs(capsys):
     """print_solution should produce output without errors."""
-    solution, _ = lightsout.solve_lights_out_bfs(2)
+    solution, _, _ = lightsout.solve_lights_out_bfs(2)
     lightsout.print_solution(solution, 2)
     captured = capsys.readouterr()
     assert len(captured.out) > 0
@@ -703,7 +722,7 @@ def test_print_solution_runs(capsys):
 
 def test_print_solution_shows_initial_state(capsys):
     """print_solution should show the initial state."""
-    solution, _ = lightsout.solve_lights_out_bfs(2)
+    solution, _, _ = lightsout.solve_lights_out_bfs(2)
     lightsout.print_solution(solution, 2)
     captured = capsys.readouterr()
     output_lower = captured.out.lower()
@@ -712,7 +731,7 @@ def test_print_solution_shows_initial_state(capsys):
 
 def test_print_solution_shows_button_presses(capsys):
     """print_solution should mention each button press."""
-    solution, _ = lightsout.solve_lights_out_bfs(2)
+    solution, _, _ = lightsout.solve_lights_out_bfs(2)
     lightsout.print_solution(solution, 2)
     captured = capsys.readouterr()
     for row, col in solution:
@@ -738,25 +757,27 @@ Implement algorithm comparison and graph generation.
 1. In `lightsout.py`, implement `compare_algorithms(grid_sizes)`:
    - For each grid size in the list, run both `solve_lights_out_bfs` and `solve_lights_out_iddfs`.
    - Print progress to console (e.g., `"Testing 2×2 grid..."`).
-   - Print results for each algorithm (solution length and nodes processed).
+   - Print results for each algorithm (solution length, nodes expanded, and nodes created).
    - Return a dictionary:
      ```python
      {
          "grid_sizes": [2, 3, ...],
-         "bfs_nodes": [nodes_2, nodes_3, ...],
-         "iddfs_nodes": [nodes_2, nodes_3, ...]
+         "bfs_expanded": [expanded_2, expanded_3, ...],
+         "bfs_created": [created_2, created_3, ...],
+         "iddfs_expanded": [expanded_2, expanded_3, ...],
+         "iddfs_created": [created_2, created_3, ...]
      }
      ```
 
 2. In `lightsout.py`, implement `plot_performance(results)`:
    - Use `matplotlib` to create a line plot.
-   - X-axis: grid size (N). Y-axis: nodes processed.
-   - Plot two lines: one for BFS, one for IDDFS.
+   - X-axis: grid size (N). Y-axis: number of nodes.
+   - Plot four lines: BFS Expanded, BFS Created, IDDFS Expanded, IDDFS Created.
    - Include a legend, axis labels, and title.
    - Save the plot as `performance_comparison.png`.
 
 3. Fill in the `if __name__ == "__main__"` block:
-   - Run `compare_algorithms([2, 3, 4, 5])`.
+   - Run `compare_algorithms([2, 3, 4])`.
    - Call `plot_performance` with the results.
    - Show the BFS solution for a 3×3 grid using `print_solution`.
 
@@ -778,11 +799,13 @@ def test_compare_returns_dict():
 
 
 def test_compare_has_required_keys():
-    """Result dict must have grid_sizes, bfs_nodes, and iddfs_nodes."""
+    """Result dict must have grid_sizes, expanded, and created keys for both algorithms."""
     results = lightsout.compare_algorithms([2])
     assert "grid_sizes" in results
-    assert "bfs_nodes" in results
-    assert "iddfs_nodes" in results
+    assert "bfs_expanded" in results
+    assert "bfs_created" in results
+    assert "iddfs_expanded" in results
+    assert "iddfs_created" in results
 
 
 def test_compare_lists_match_length():
@@ -790,8 +813,10 @@ def test_compare_lists_match_length():
     sizes = [2, 3]
     results = lightsout.compare_algorithms(sizes)
     assert len(results["grid_sizes"]) == len(sizes)
-    assert len(results["bfs_nodes"]) == len(sizes)
-    assert len(results["iddfs_nodes"]) == len(sizes)
+    assert len(results["bfs_expanded"]) == len(sizes)
+    assert len(results["bfs_created"]) == len(sizes)
+    assert len(results["iddfs_expanded"]) == len(sizes)
+    assert len(results["iddfs_created"]) == len(sizes)
 
 
 def test_compare_grid_sizes_match():
@@ -804,8 +829,17 @@ def test_compare_grid_sizes_match():
 def test_compare_nodes_are_positive():
     """Node counts should be positive integers."""
     results = lightsout.compare_algorithms([2])
-    assert results["bfs_nodes"][0] > 0
-    assert results["iddfs_nodes"][0] > 0
+    assert results["bfs_expanded"][0] > 0
+    assert results["bfs_created"][0] > 0
+    assert results["iddfs_expanded"][0] > 0
+    assert results["iddfs_created"][0] > 0
+
+
+def test_compare_created_gte_expanded():
+    """Nodes created should be >= nodes expanded for both algorithms."""
+    results = lightsout.compare_algorithms([2])
+    assert results["bfs_created"][0] >= results["bfs_expanded"][0]
+    assert results["iddfs_created"][0] >= results["iddfs_expanded"][0]
 
 
 def test_plot_creates_file():
@@ -838,17 +872,19 @@ def test_compare_console_output(capsys):
     lightsout.compare_algorithms([2])
     captured = capsys.readouterr()
     assert "2" in captured.out
+    assert "expanded" in captured.out.lower()
+    assert "created" in captured.out.lower()
 ```
 
 Run: `pytest tests/test_step7.py -v`
 
-All 8 tests must pass.
+All 9 tests must pass.
 
 **Acceptance criteria:**
-- `compare_algorithms` returns correctly structured results.
-- `plot_performance` generates a valid PNG file.
+- `compare_algorithms` returns correctly structured results with expanded and created counts.
+- `plot_performance` generates a valid PNG file with four lines.
 - Console output shows progress during comparison.
-- `pytest tests/test_step7.py -v` passes all 8 tests.
+- `pytest tests/test_step7.py -v` passes all 9 tests.
 
 ---
 
@@ -876,8 +912,8 @@ class TestSolutionCorrectness:
 
     def _verify_solution(self, n):
         """Helper: solve and verify for grid size n."""
-        bfs_sol, bfs_nodes = lightsout.solve_lights_out_bfs(n)
-        iddfs_sol, iddfs_nodes = lightsout.solve_lights_out_iddfs(n)
+        bfs_sol, _, _ = lightsout.solve_lights_out_bfs(n)
+        iddfs_sol, _, _ = lightsout.solve_lights_out_iddfs(n)
 
         # Both should find a solution
         assert bfs_sol is not None, f"BFS failed for {n}×{n}"
@@ -912,13 +948,13 @@ class TestSolutionOptimality:
     """BFS and IDDFS should find solutions of the same length."""
 
     def test_2x2_same_length(self):
-        bfs_sol, _ = lightsout.solve_lights_out_bfs(2)
-        iddfs_sol, _ = lightsout.solve_lights_out_iddfs(2)
+        bfs_sol, _, _ = lightsout.solve_lights_out_bfs(2)
+        iddfs_sol, _, _ = lightsout.solve_lights_out_iddfs(2)
         assert len(bfs_sol) == len(iddfs_sol)
 
     def test_3x3_same_length(self):
-        bfs_sol, _ = lightsout.solve_lights_out_bfs(3)
-        iddfs_sol, _ = lightsout.solve_lights_out_iddfs(3)
+        bfs_sol, _, _ = lightsout.solve_lights_out_bfs(3)
+        iddfs_sol, _, _ = lightsout.solve_lights_out_iddfs(3)
         assert len(bfs_sol) == len(iddfs_sol)
 
 
@@ -942,7 +978,7 @@ class TestEdgeCases:
     def test_solution_buttons_within_bounds(self):
         """All buttons in a solution should be within grid bounds."""
         for n in [2, 3]:
-            solution, _ = lightsout.solve_lights_out_bfs(n)
+            solution, _, _ = lightsout.solve_lights_out_bfs(n)
             for row, col in solution:
                 assert 0 <= row < n
                 assert 0 <= col < n
@@ -950,28 +986,32 @@ class TestEdgeCases:
     def test_no_repeated_buttons_in_solution(self):
         """Solutions should never press the same button twice."""
         for n in [2, 3]:
-            bfs_sol, _ = lightsout.solve_lights_out_bfs(n)
-            iddfs_sol, _ = lightsout.solve_lights_out_iddfs(n)
+            bfs_sol, _, _ = lightsout.solve_lights_out_bfs(n)
+            iddfs_sol, _, _ = lightsout.solve_lights_out_iddfs(n)
             assert len(bfs_sol) == len(set(bfs_sol))
             assert len(iddfs_sol) == len(set(iddfs_sol))
 
 
 class TestReturnTypes:
     def test_bfs_return_type(self):
-        solution, nodes = lightsout.solve_lights_out_bfs(2)
+        solution, expanded, created = lightsout.solve_lights_out_bfs(2)
         assert isinstance(solution, tuple)
-        assert isinstance(nodes, int)
+        assert isinstance(expanded, int)
+        assert isinstance(created, int)
 
     def test_iddfs_return_type(self):
-        solution, nodes = lightsout.solve_lights_out_iddfs(2)
+        solution, expanded, created = lightsout.solve_lights_out_iddfs(2)
         assert isinstance(solution, tuple)
-        assert isinstance(nodes, int)
+        assert isinstance(expanded, int)
+        assert isinstance(created, int)
 
     def test_compare_return_type(self):
         results = lightsout.compare_algorithms([2])
         assert isinstance(results, dict)
-        assert isinstance(results["bfs_nodes"], list)
-        assert isinstance(results["iddfs_nodes"], list)
+        assert isinstance(results["bfs_expanded"], list)
+        assert isinstance(results["bfs_created"], list)
+        assert isinstance(results["iddfs_expanded"], list)
+        assert isinstance(results["iddfs_created"], list)
 ```
 
 Run: `pytest tests/test_step8.py -v`
