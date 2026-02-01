@@ -1,6 +1,14 @@
 """
 Lights Out puzzle solver using BFS and Iterative Deepening
-DSM and Claude, 2026
+Ava and Claude, 2026
+
+I also had Claude create a specs document and step by step
+instructions, but did not want to bloat the final submission
+with extra files so I will not include them.
+
+I'm not sure if my program is structured oddly, but IDDFS
+seems much less successful than BFS on all fronts. Is this 
+because IDDFS only outperforms BFS at much higher depths?
 """
 
 from collections import deque
