@@ -2,6 +2,7 @@
 N-queens problem using iterative deepening depth-first search
 
 DSM and Claude, 2026
+(I fixed the range issue in main, but kept the original code intact beyond that)
 """
 
 import matplotlib.pyplot as plt
@@ -162,7 +163,7 @@ def print_board(solution: tuple) -> None:
 
 
 ### Main
-sizes = list(range(1, 10))
+sizes = list(range(1, 13))
 expanded_list = []
 created_list = []
 
