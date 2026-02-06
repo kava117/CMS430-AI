@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sokoban Solver</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Sokoban Solver</h1>
+            <p>Select a puzzle and watch the optimal solution!</p>
+        </header>
+
+        <main>
+            <div class="sidebar">
+                <h2>Select Puzzle</h2>
+                <div id="puzzle-list"></div>
+
+                <button id="solve-btn" class="btn btn-primary" disabled>Solve Puzzle</button>
+
+                <div id="stats" class="stats hidden">
+                    <h3>Statistics</h3>
+                    <p>States explored: <span id="states">-</span></p>
+                    <p>Time elapsed: <span id="time">-</span></p>
+                    <p>Solution length: <span id="length">-</span></p>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div id="puzzle-display">
+                    <canvas id="puzzle-canvas"></canvas>
+                    <p id="placeholder" class="placeholder">Select a puzzle to begin</p>
+                </div>
+
+                <div id="controls" class="controls hidden">
+                    <div class="control-buttons">
+                        <button id="play-btn" class="btn">Play</button>
+                        <button id="pause-btn" class="btn">Pause</button>
+                        <button id="reset-btn" class="btn">Reset</button>
+                        <button id="step-btn" class="btn">Step</button>
+                    </div>
+
+                    <div class="speed-control">
+                        <label for="speed-slider">Speed:</label>
+                        <input type="range" id="speed-slider" min="1" max="10" value="3">
+                        <span id="speed-value">3</span>
+                    </div>
+
+                    <div class="progress">
+                        <span>Move: <span id="current-move">0</span> / <span id="total-moves">0</span></span>
+                    </div>
+                </div>
+
+                <div id="status" class="status"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/renderer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/solver.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
