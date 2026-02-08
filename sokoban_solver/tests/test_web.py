@@ -114,3 +114,108 @@ def test_index_page(client):
     response = client.get('/')
     assert response.status_code == 200
     assert b'Sokoban' in response.data
+
+
+# --- Step 3.1: Validation API ---
+
+def test_validate_valid_puzzle(client):
+    grid = [
+        ['#', '#', '#', '#'],
+        ['#', '.', ' ', '#'],
+        ['#', '$', ' ', '#'],
+        ['#', '@', ' ', '#'],
+        ['#', '#', '#', '#'],
+    ]
+
+    response = client.post(
+        '/api/validate',
+        data=json.dumps({'grid': grid}),
+        content_type='application/json',
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['valid'] is True
+    assert len(data['errors']) == 0
+
+
+def test_validate_no_player(client):
+    grid = [
+        ['#', '#', '#', '#'],
+        ['#', '.', ' ', '#'],
+        ['#', '$', ' ', '#'],
+        ['#', ' ', ' ', '#'],
+        ['#', '#', '#', '#'],
+    ]
+
+    response = client.post(
+        '/api/validate',
+        data=json.dumps({'grid': grid}),
+        content_type='application/json',
+    )
+
+    data = response.get_json()
+    assert data['valid'] is False
+    assert any('player' in e.lower() for e in data['errors'])
+
+
+def test_validate_no_boxes(client):
+    grid = [
+        ['#', '#', '#', '#'],
+        ['#', '.', ' ', '#'],
+        ['#', ' ', ' ', '#'],
+        ['#', '@', ' ', '#'],
+        ['#', '#', '#', '#'],
+    ]
+
+    response = client.post(
+        '/api/validate',
+        data=json.dumps({'grid': grid}),
+        content_type='application/json',
+    )
+
+    data = response.get_json()
+    assert data['valid'] is False
+    assert any('box' in e.lower() for e in data['errors'])
+
+
+def test_validate_box_goal_mismatch(client):
+    grid = [
+        ['#', '#', '#', '#'],
+        ['#', '.', '.', '#'],
+        ['#', '$', ' ', '#'],
+        ['#', '@', ' ', '#'],
+        ['#', '#', '#', '#'],
+    ]
+
+    response = client.post(
+        '/api/validate',
+        data=json.dumps({'grid': grid}),
+        content_type='application/json',
+    )
+
+    data = response.get_json()
+    # Valid (has player, box, goal) but warning about mismatch
+    assert data['valid'] is True
+    assert len(data['warnings']) > 0
+
+
+def test_validate_box_on_goal_counted(client):
+    """A '*' counts as both a box and a goal."""
+    grid = [
+        ['#', '#', '#', '#'],
+        ['#', '*', ' ', '#'],
+        ['#', ' ', ' ', '#'],
+        ['#', '@', ' ', '#'],
+        ['#', '#', '#', '#'],
+    ]
+
+    response = client.post(
+        '/api/validate',
+        data=json.dumps({'grid': grid}),
+        content_type='application/json',
+    )
+
+    data = response.get_json()
+    assert data['valid'] is True
+    assert len(data['warnings']) == 0

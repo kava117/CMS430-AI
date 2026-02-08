@@ -75,7 +75,7 @@ def generate_moves(state, puzzle_static):
                     0 <= push_to[1] < puzzle_static.height):
                 new_boxes = (state.boxes - {box}) | {push_to}
                 new_state = State(player_pos=box, boxes=new_boxes)
-                moves.append((direction, new_state))
+                moves.append((direction, new_state, box))
 
     return moves
 

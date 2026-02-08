@@ -34,6 +34,7 @@ def solve(initial_state, puzzle_static, timeout=60, max_states=10_000_000):
         return {
             'success': True,
             'solution': '',
+            'pushed_boxes': [],
             'stats': {
                 'states_explored': 0,
                 'time_elapsed': time.time() - start_time,
@@ -42,6 +43,7 @@ def solve(initial_state, puzzle_static, timeout=60, max_states=10_000_000):
         }
 
     # Priority queue: (f_score, counter, g_score, state, path)
+    # path is a list of (direction, pushed_box_pos) tuples
     counter = 0
     h = distance_heuristic(initial_state.boxes, puzzle_static.goals, goal_distances)
     if h == float('inf'):
@@ -55,7 +57,7 @@ def solve(initial_state, puzzle_static, timeout=60, max_states=10_000_000):
             },
         }
 
-    open_set = [(h, counter, 0, initial_state, '')]
+    open_set = [(h, counter, 0, initial_state, [])]
     closed_set = set()
     # Track best g-score for each state
     best_g = {initial_state: 0}
@@ -98,7 +100,7 @@ def solve(initial_state, puzzle_static, timeout=60, max_states=10_000_000):
         # Generate successor states
         moves = generate_moves(current_state, puzzle_static)
 
-        for direction, new_state in moves:
+        for direction, new_state, pushed_box in moves:
             if new_state in closed_set:
                 continue
 
@@ -107,13 +109,16 @@ def solve(initial_state, puzzle_static, timeout=60, max_states=10_000_000):
                 continue
 
             new_g = g + 1
-            new_path = path + direction
+            new_path = path + [(direction, pushed_box)]
 
             # Check if goal
             if is_goal_state(new_state, puzzle_static):
+                solution_str = ''.join(d for d, _ in new_path)
+                pushed_boxes = [list(b) for _, b in new_path]
                 return {
                     'success': True,
-                    'solution': new_path,
+                    'solution': solution_str,
+                    'pushed_boxes': pushed_boxes,
                     'stats': {
                         'states_explored': states_explored,
                         'time_elapsed': time.time() - start_time,

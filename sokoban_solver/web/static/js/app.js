@@ -2,6 +2,7 @@
  * Main application logic for Sokoban Solver web interface.
  */
 
+// ─── Solver Mode State ──────────────────────────────────────────
 let currentPuzzle = null;   // { id, puzzle, grid }
 let solution = null;        // result from solver API
 let initialState = null;    // { player, boxes, goals } extracted from grid
@@ -10,12 +11,24 @@ let isPlaying = false;
 let playInterval = null;
 let renderer = null;
 
+// ─── Builder Mode State ─────────────────────────────────────────
+let builder = null;
+let builderRenderer = null;
+let builderSolution = null;
+let builderInitialState = null;
+let builderCurrentMove = 0;
+let builderIsPlaying = false;
+let builderPlayInterval = null;
+let builderGrid = null;  // grid snapshot for playback
+
 // ─── Initialization ────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
     renderer = new PuzzleRenderer(document.getElementById('puzzle-canvas'));
     await loadPuzzleList();
     setupEventListeners();
+    setupTabs();
+    initBuilder();
 });
 
 function setupEventListeners() {
@@ -207,6 +220,7 @@ const DIRECTIONS = {
 
 /**
  * Reconstruct the puzzle state after applying the first `moveIndex` moves.
+ * Uses pushed_boxes from solver to identify exactly which box is pushed each step.
  */
 function getStateAtMove(moveIndex) {
     let player = [...initialState.player];
@@ -215,89 +229,20 @@ function getStateAtMove(moveIndex) {
     for (let i = 0; i < moveIndex; i++) {
         const move = solution.moves[i];
         const [dx, dy] = DIRECTIONS[move];
+        const pushedBox = solution.pushed_boxes[i];
 
-        // Find the box being pushed: it must be adjacent to player in the move direction
-        // But player may not be adjacent — they walk first. In our push model,
-        // we need to find the box the player pushes.
-        // Since moves come from the solver, each move pushes exactly one box.
-        // The pushed box is the one where (box - dir) is reachable by the player.
-        // For simplicity, we search for a box that can be pushed in this direction.
+        // Find the box at the pushed position
+        const bi = boxes.findIndex(b => b[0] === pushedBox[0] && b[1] === pushedBox[1]);
 
-        let pushed = -1;
-        for (let bi = 0; bi < boxes.length; bi++) {
-            const bx = boxes[bi][0];
-            const by = boxes[bi][1];
-            const pushFrom = [bx - dx, by - dy];
-            const pushTo = [bx + dx, by + dy];
-
-            // Push-from must be reachable by player (simplified: check it's not a wall/box)
-            // Push-to must not be a wall or another box
-            // Since we trust solver output, just find the matching push.
-            // The player ends up at the box's old position after pushing.
-
-            // Check push-to is not occupied by another box
-            const pushToBlocked = boxes.some(
-                (ob, oi) => oi !== bi && ob[0] === pushTo[0] && ob[1] === pushTo[1]
-            );
-
-            if (!pushToBlocked) {
-                // Check the push-from position is reachable from current player
-                // (full BFS would be ideal, but for correctness with solver output,
-                //  we can do a simpler check — the solver guarantees validity)
-                if (isReachable(player, pushFrom, boxes, currentPuzzle.grid)) {
-                    pushed = bi;
-                    break;
-                }
-            }
-        }
-
-        if (pushed >= 0) {
+        if (bi >= 0) {
             // Move player to where the box was
-            player = [boxes[pushed][0], boxes[pushed][1]];
-            // Move box in direction
-            boxes[pushed] = [boxes[pushed][0] + dx, boxes[pushed][1] + dy];
+            player = [boxes[bi][0], boxes[bi][1]];
+            // Move box in push direction
+            boxes[bi] = [boxes[bi][0] + dx, boxes[bi][1] + dy];
         }
     }
 
     return { player, boxes, goals: initialState.goals };
-}
-
-/**
- * Simple BFS to check if player can reach target without going through boxes or walls.
- */
-function isReachable(from, to, boxes, grid) {
-    if (from[0] === to[0] && from[1] === to[1]) return true;
-
-    const rows = grid.length;
-    const cols = Math.max(...grid.map(r => r.length));
-    const boxSet = new Set(boxes.map(b => `${b[0]},${b[1]}`));
-    const visited = new Set();
-    const queue = [[from[0], from[1]]];
-    visited.add(`${from[0]},${from[1]}`);
-
-    while (queue.length > 0) {
-        const [cx, cy] = queue.shift();
-
-        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
-            const nx = cx + dx;
-            const ny = cy + dy;
-            const key = `${nx},${ny}`;
-
-            if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
-            if (visited.has(key)) continue;
-
-            const ch = (grid[ny] && grid[ny][nx]) || '#';
-            if (ch === '#') continue;
-            if (boxSet.has(key)) continue;
-
-            if (nx === to[0] && ny === to[1]) return true;
-
-            visited.add(key);
-            queue.push([nx, ny]);
-        }
-    }
-
-    return false;
 }
 
 // ─── Rendering ─────────────────────────────────────────────────
@@ -336,6 +281,245 @@ function extractStateFromGrid(grid) {
 
 function setStatus(message, type) {
     const el = document.getElementById('status');
+    el.textContent = message;
+    el.className = 'status' + (type ? ' ' + type : '');
+}
+
+// ─── Tab Switching ──────────────────────────────────────────────
+
+function setupTabs() {
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.tab;
+
+            // Toggle active tab button
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // Toggle mode visibility
+            document.getElementById('solver-mode').classList.toggle('hidden', target !== 'solver');
+            document.getElementById('builder-mode').classList.toggle('hidden', target !== 'builder');
+
+            // Pause any running playback
+            pauseSolution();
+            builderPauseSolution();
+        });
+    });
+}
+
+// ─── Builder Mode ───────────────────────────────────────────────
+
+function initBuilder() {
+    const canvas = document.getElementById('builder-canvas');
+    builder = new PuzzleBuilder(canvas, 8, 8);
+    builderRenderer = new PuzzleRenderer(canvas);
+
+    // Tool palette
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            builder.setTool(btn.dataset.tool);
+        });
+    });
+
+    // Clear grid
+    document.getElementById('clear-btn').addEventListener('click', () => {
+        builder.clear();
+        builderSolution = null;
+        builderPauseSolution();
+        document.getElementById('builder-controls').classList.add('hidden');
+        document.getElementById('builder-stats').classList.add('hidden');
+        setBuilderStatus('Grid cleared.', '');
+    });
+
+    // Resize grid
+    document.getElementById('resize-btn').addEventListener('click', () => {
+        const w = parseInt(document.getElementById('grid-width').value) || 8;
+        const h = parseInt(document.getElementById('grid-height').value) || 8;
+        const cw = Math.max(4, Math.min(20, w));
+        const ch = Math.max(4, Math.min(20, h));
+        document.getElementById('grid-width').value = cw;
+        document.getElementById('grid-height').value = ch;
+        builder.resize(cw, ch);
+        builderSolution = null;
+        builderPauseSolution();
+        document.getElementById('builder-controls').classList.add('hidden');
+        document.getElementById('builder-stats').classList.add('hidden');
+        setBuilderStatus(`Grid resized to ${cw}x${ch}.`, '');
+    });
+
+    // Validate
+    document.getElementById('validate-btn').addEventListener('click', async () => {
+        setBuilderStatus('Validating...', 'loading');
+        const result = await builder.validate();
+
+        if (result.valid) {
+            let msg = 'Puzzle is valid!';
+            if (result.warnings && result.warnings.length > 0) {
+                msg += ' Warning: ' + result.warnings.join('; ');
+            }
+            setBuilderStatus(msg, 'success');
+        } else {
+            setBuilderStatus('Invalid: ' + result.errors.join('; '), 'error');
+        }
+    });
+
+    // Solve
+    document.getElementById('build-solve-btn').addEventListener('click', builderSolvePuzzle);
+
+    // Playback controls
+    document.getElementById('builder-play-btn').addEventListener('click', builderPlaySolution);
+    document.getElementById('builder-pause-btn').addEventListener('click', builderPauseSolution);
+    document.getElementById('builder-reset-btn').addEventListener('click', builderResetSolution);
+    document.getElementById('builder-step-btn').addEventListener('click', builderStepForward);
+
+    const speedSlider = document.getElementById('builder-speed-slider');
+    speedSlider.addEventListener('input', (e) => {
+        document.getElementById('builder-speed-value').textContent = e.target.value;
+        if (builderIsPlaying) {
+            builderPauseSolution();
+            builderPlaySolution();
+        }
+    });
+}
+
+async function builderSolvePuzzle() {
+    setBuilderStatus('Solving...', 'loading');
+    document.getElementById('builder-controls').classList.add('hidden');
+    document.getElementById('builder-stats').classList.add('hidden');
+    builderPauseSolution();
+
+    try {
+        const result = await builder.solve();
+
+        if (result.success) {
+            builderSolution = result;
+            builderCurrentMove = 0;
+
+            // Snapshot the grid for playback rendering
+            builderGrid = builder.grid.map(row => [...row]);
+
+            builderInitialState = {
+                player: result.initial_state.player,
+                boxes: result.initial_state.boxes,
+                goals: result.initial_state.goals,
+            };
+
+            // Show stats
+            document.getElementById('builder-states').textContent =
+                result.stats.states_explored.toLocaleString();
+            document.getElementById('builder-time').textContent =
+                result.stats.time_elapsed.toFixed(2) + 's';
+            document.getElementById('builder-length').textContent = result.length;
+            document.getElementById('builder-stats').classList.remove('hidden');
+
+            // Show controls
+            document.getElementById('builder-total-moves').textContent = result.length;
+            document.getElementById('builder-current-move').textContent = '0';
+            document.getElementById('builder-controls').classList.remove('hidden');
+
+            // Render initial state on canvas using PuzzleRenderer
+            builderRenderState(builderInitialState);
+
+            setBuilderStatus(
+                `Solution found! ${result.length} pushes. Press Play to watch.`,
+                'success'
+            );
+        } else {
+            setBuilderStatus(`Failed: ${result.error}`, 'error');
+        }
+    } catch (err) {
+        setBuilderStatus('Error communicating with solver.', 'error');
+    }
+}
+
+// ─── Builder Playback ───────────────────────────────────────────
+
+function builderPlaySolution() {
+    if (!builderSolution || builderIsPlaying) return;
+    if (builderCurrentMove >= builderSolution.length) {
+        builderResetSolution();
+    }
+
+    builderIsPlaying = true;
+    const speed = parseInt(document.getElementById('builder-speed-slider').value);
+    const delay = 1000 / speed;
+
+    builderPlayInterval = setInterval(() => {
+        if (builderCurrentMove < builderSolution.length) {
+            builderStepForward();
+        } else {
+            builderPauseSolution();
+            setBuilderStatus('Solution complete!', 'success');
+        }
+    }, delay);
+}
+
+function builderPauseSolution() {
+    builderIsPlaying = false;
+    if (builderPlayInterval) {
+        clearInterval(builderPlayInterval);
+        builderPlayInterval = null;
+    }
+}
+
+function builderResetSolution() {
+    builderPauseSolution();
+    builderCurrentMove = 0;
+    document.getElementById('builder-current-move').textContent = '0';
+    if (builderInitialState) {
+        builderRenderState(builderInitialState);
+    }
+    if (builderSolution) {
+        setBuilderStatus(
+            `Solution: ${builderSolution.length} pushes. Press Play to watch.`,
+            'success'
+        );
+    }
+}
+
+function builderStepForward() {
+    if (!builderSolution || builderCurrentMove >= builderSolution.length) return;
+
+    builderCurrentMove++;
+    const state = builderGetStateAtMove(builderCurrentMove);
+    builderRenderState(state);
+    document.getElementById('builder-current-move').textContent = builderCurrentMove;
+
+    if (builderCurrentMove >= builderSolution.length) {
+        builderPauseSolution();
+        setBuilderStatus('Solution complete!', 'success');
+    }
+}
+
+function builderGetStateAtMove(moveIndex) {
+    let player = [...builderInitialState.player];
+    let boxes = builderInitialState.boxes.map(b => [...b]);
+
+    for (let i = 0; i < moveIndex; i++) {
+        const move = builderSolution.moves[i];
+        const [dx, dy] = DIRECTIONS[move];
+        const pushedBox = builderSolution.pushed_boxes[i];
+
+        const bi = boxes.findIndex(b => b[0] === pushedBox[0] && b[1] === pushedBox[1]);
+
+        if (bi >= 0) {
+            player = [boxes[bi][0], boxes[bi][1]];
+            boxes[bi] = [boxes[bi][0] + dx, boxes[bi][1] + dy];
+        }
+    }
+
+    return { player, boxes, goals: builderInitialState.goals };
+}
+
+function builderRenderState(state) {
+    if (!builderGrid) return;
+    builderRenderer.render(builderGrid, state.player, state.boxes, state.goals);
+}
+
+function setBuilderStatus(message, type) {
+    const el = document.getElementById('builder-status');
     el.textContent = message;
     el.className = 'status' + (type ? ' ' + type : '');
 }

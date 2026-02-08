@@ -161,6 +161,7 @@ def solve():
                 "length": len(result['solution']),
                 "stats": result['stats'],
                 "initial_state": result['initial_state'],
+                "pushed_boxes": result.get('pushed_boxes', []),
             })
         else:
             return jsonify({
@@ -176,6 +177,45 @@ def solve():
             "error": str(e),
             "reason": "server_error",
         }), 500
+
+
+@app.route('/api/validate', methods=['POST'])
+def validate_puzzle():
+    """Validate a user-created puzzle grid."""
+    data = request.get_json()
+    grid = data.get('grid')
+
+    if not grid or not isinstance(grid, list):
+        return jsonify({"valid": False, "errors": ["No grid provided"], "warnings": []})
+
+    errors = []
+    warnings = []
+
+    player_count = sum(row.count('@') + row.count('+') for row in grid)
+    box_count = sum(row.count('$') + row.count('*') for row in grid)
+    goal_count = sum(row.count('.') + row.count('*') + row.count('+') for row in grid)
+
+    if player_count == 0:
+        errors.append("Must have exactly one player (@)")
+    elif player_count > 1:
+        errors.append("Can only have one player")
+
+    if box_count == 0:
+        errors.append("Must have at least one box ($)")
+
+    if goal_count == 0:
+        errors.append("Must have at least one goal (.)")
+
+    if box_count != goal_count and box_count > 0 and goal_count > 0:
+        warnings.append(
+            f"Box count ({box_count}) doesn't match goal count ({goal_count})"
+        )
+
+    return jsonify({
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings,
+    })
 
 
 if __name__ == '__main__':

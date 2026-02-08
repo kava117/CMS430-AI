@@ -10,10 +10,14 @@
     <div class="container">
         <header>
             <h1>Sokoban Solver</h1>
-            <p>Select a puzzle and watch the optimal solution!</p>
+            <nav class="tabs">
+                <button class="tab active" data-tab="solver">Solver</button>
+                <button class="tab" data-tab="builder">Puzzle Builder</button>
+            </nav>
         </header>
 
-        <main>
+        <!-- ─── Solver Mode ─────────────────────────────── -->
+        <main id="solver-mode">
             <div class="sidebar">
                 <h2>Select Puzzle</h2>
                 <div id="puzzle-list"></div>
@@ -56,10 +60,79 @@
                 <div id="status" class="status"></div>
             </div>
         </main>
+
+        <!-- ─── Builder Mode ────────────────────────────── -->
+        <main id="builder-mode" class="hidden">
+            <div class="sidebar">
+                <h2>Tools</h2>
+                <div id="tool-palette">
+                    <button class="tool-btn active" data-tool="#">Wall (#)</button>
+                    <button class="tool-btn" data-tool=" ">Floor ( )</button>
+                    <button class="tool-btn" data-tool=".">Goal (.)</button>
+                    <button class="tool-btn" data-tool="$">Box ($)</button>
+                    <button class="tool-btn" data-tool="@">Player (@)</button>
+                    <button class="tool-btn" data-tool="eraser">Eraser</button>
+                </div>
+
+                <div class="grid-size-controls">
+                    <h2>Grid Size</h2>
+                    <div class="size-inputs">
+                        <label>
+                            W: <input type="number" id="grid-width" value="8" min="4" max="20">
+                        </label>
+                        <label>
+                            H: <input type="number" id="grid-height" value="8" min="4" max="20">
+                        </label>
+                        <button id="resize-btn" class="btn">Resize</button>
+                    </div>
+                </div>
+
+                <div class="builder-actions">
+                    <button id="clear-btn" class="btn btn-primary">Clear Grid</button>
+                    <button id="validate-btn" class="btn btn-primary">Validate</button>
+                    <button id="build-solve-btn" class="btn btn-primary">Solve This Puzzle</button>
+                </div>
+
+                <div id="builder-stats" class="stats hidden">
+                    <h3>Statistics</h3>
+                    <p>States explored: <span id="builder-states">-</span></p>
+                    <p>Time elapsed: <span id="builder-time">-</span></p>
+                    <p>Solution length: <span id="builder-length">-</span></p>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div id="builder-display">
+                    <canvas id="builder-canvas"></canvas>
+                </div>
+
+                <div id="builder-controls" class="controls hidden">
+                    <div class="control-buttons">
+                        <button id="builder-play-btn" class="btn">Play</button>
+                        <button id="builder-pause-btn" class="btn">Pause</button>
+                        <button id="builder-reset-btn" class="btn">Reset</button>
+                        <button id="builder-step-btn" class="btn">Step</button>
+                    </div>
+
+                    <div class="speed-control">
+                        <label for="builder-speed-slider">Speed:</label>
+                        <input type="range" id="builder-speed-slider" min="1" max="10" value="3">
+                        <span id="builder-speed-value">3</span>
+                    </div>
+
+                    <div class="progress">
+                        <span>Move: <span id="builder-current-move">0</span> / <span id="builder-total-moves">0</span></span>
+                    </div>
+                </div>
+
+                <div id="builder-status" class="status"></div>
+            </div>
+        </main>
     </div>
 
     <script src="{{ url_for('static', filename='js/renderer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/solver.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
