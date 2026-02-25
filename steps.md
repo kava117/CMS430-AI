@@ -113,8 +113,9 @@ def test_hard_and_soft_are_independent():
 1. Import `numpy as np`, `random`, and `chromosome` functions.
 2. Define a helper `make_deck()` that returns a list of 52 card values: four each of 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10.
 3. Define a helper `hand_value(cards)` that returns `(total, is_soft)`:
-   - Count aces. Start with non-ace sum. Add aces one at a time, counting as 11 if total stays ≤ 21, else count as 1.
-   - `is_soft` is True if at least one ace is counted as 11 and total ≤ 21.
+   - Count all aces as 1 first (start with non-ace sum + number of aces). Then, if any aces are present and upgrading one ace from 1 to 11 keeps the total ≤ 21 (i.e., `total + 10 <= 21`), add 10 and set `is_soft = True`.
+   - At most one ace can ever usefully count as 11 (two elevens alone exceed 21), so a single upgrade check is sufficient.
+   - `is_soft` is True only when the upgraded ace is in effect.
 4. Implement `simulate_hand(chrom, deck)`:
    - Draw cards sequentially from the front of `deck` using `pop(0)` or an index pointer.
    - Deal: player card 1, dealer card 1, player card 2, dealer face-up card 2. The dealer's hole card (first card) is not used for decisions.
