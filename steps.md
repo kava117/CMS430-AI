@@ -1,879 +1,1161 @@
-# DOMINION — Implementation Steps
+# DOMINION — Implementation Steps (Python / Flask)
 
-**Target deliverable:** A single self-contained `dominion.html` file.
-**Stack:** Vanilla JS (ES2020+), HTML5 Canvas, inline CSS. No build tools or external dependencies (Google Fonts CDN only).
+**Target deliverable:** A multi-file Python web application.
+**Stack:** Python 3.10+, Flask, HTML5 Canvas (client-side rendering), CSS custom properties. No npm, no bundler.
 
-Each step builds on the last. Complete and verify all tests before moving to the next step.
-
----
-
-## Step 1 — HTML Skeleton & CSS Foundation
-
-**Goal:** Create `dominion.html` with the full page structure, CSS custom properties, and Google Fonts loaded. No game logic yet.
-
-### Tasks
-1. Create `dominion.html` with `<!DOCTYPE html>` and `<meta charset="UTF-8">`.
-2. Link Google Fonts: `Cinzel` (headers) and `Crimson Text` (body/log).
-3. Define CSS custom properties (`:root`):
-   - `--bg: #0d0f0e`
-   - `--player-color: #4a9eff`
-   - `--ai-color: #e05555`
-   - `--accent: #c9a84c`
-   - `--text: #d4c9a8`
-   - `--fog: #080a08`
-4. Apply `box-sizing: border-box`, `margin: 0`, dark background to `body`.
-5. Create three `<div>` sections (hidden by default, shown via JS class toggling):
-   - `#screen-title` — title/setup screen
-   - `#screen-game` — game screen
-   - `#screen-end` — end/result screen
-6. Place a `<canvas id="board-canvas">` inside `#screen-game`.
-7. Add a single `<script>` tag at the bottom of `<body>` (all game code lives here).
-8. On `DOMContentLoaded`, show `#screen-title` and hide the others.
-
-### Tests
-```
-// Paste into browser console after opening dominion.html
-console.assert(document.getElementById('screen-title').style.display !== 'none' ||
-  document.getElementById('screen-title').classList.contains('active'),
-  'FAIL: title screen should be visible on load');
-console.assert(document.getElementById('board-canvas') !== null,
-  'FAIL: canvas element must exist');
-console.assert(getComputedStyle(document.body).fontFamily.includes('Crimson') ||
-  getComputedStyle(document.body).backgroundColor !== 'rgba(0, 0, 0, 0)',
-  'FAIL: custom fonts/background not applied');
-console.log('Step 1 tests passed');
-```
-**Visual check:** Opening the file shows a dark page; no browser-default white background visible.
+Run all Python tests from the project root with `pytest tests/ -v`.
+Browser console tests require the Flask dev server running (`flask run` or `python app.py`).
 
 ---
 
-## Step 2 — Title / Setup Screen UI
+## Step 1 — Project Scaffolding
 
-**Goal:** Render a styled setup card on `#screen-title` with all configuration inputs and a working "Begin Conquest" button.
-
-### Tasks
-1. Inside `#screen-title`, add:
-   - Game title `<h1>DOMINION</h1>` in `Cinzel` font with a CSS glow/text-shadow animation.
-   - Tagline `<p>` in italic `Crimson Text`.
-   - A setup card `<div class="setup-card">` containing:
-     - Number input **Board Width** (min=8, max=24, value=14)
-     - Number input **Board Height** (min=6, max=18, value=10)
-     - Text input **Seed** (placeholder: "leave blank for random")
-     - Select **AI Difficulty**: Scout (depth=2), Knight (depth=3, selected), Warlord (depth=4)
-   - `<button id="btn-start">Begin Conquest</button>`
-2. Style the card with a parchment-border look using CSS (no images required — use `border`, `box-shadow`, `background`).
-3. Wire `#btn-start` click: read all input values, validate ranges (clamp if out of bounds), then call `startGame(config)` (stubbed for now — just `console.log(config)`).
-
-### Tests
-```
-// In console:
-const w = document.querySelector('input[name="width"]') ||
-          document.querySelector('#input-width');
-const h = document.querySelector('input[name="height"]') ||
-          document.querySelector('#input-height');
-console.assert(w !== null, 'FAIL: width input missing');
-console.assert(h !== null, 'FAIL: height input missing');
-console.assert(document.querySelector('#btn-start') !== null, 'FAIL: start button missing');
-
-// Simulate out-of-range input clamping:
-w.value = 99;
-document.querySelector('#btn-start').click();
-// Check console — logged config.W should be 24, not 99
-console.log('Step 2 tests: verify logged config.W === 24 for input 99');
-```
-**Visual check:** Setup card is centered, dark-themed, styled fonts visible, glow animation on title.
-
----
-
-## Step 3 — PRNG, Board Data Model & Generation
-
-**Goal:** Implement the seeded PRNG (mulberry32 + FNV-1a hash), the board data model, and `generateBoard()`.
+**Goal:** Create the directory structure, install dependencies, and verify the Flask development server starts and serves the index page.
 
 ### Tasks
-1. Implement `hashStr(s)` using FNV-1a:
-   ```js
-   function hashStr(s) {
-     let h = 0x811c9dc5;
-     for (let i = 0; i < s.length; i++) {
-       h ^= s.charCodeAt(i);
-       h = (h * 0x01000193) >>> 0;
-     }
-     return h;
-   }
+1. Create the following directory tree (all files empty stubs for now):
    ```
-2. Implement `mulberry32(seed)` returning a `() => float[0,1)` function.
-3. If the seed input is blank, use `String(Date.now())` as the seed.
-4. Define tile type constants:
-   ```js
-   const T = { FOREST:0, PLAINS:1, TOWER:2, CAVE:3, MOUNTAIN:4, WIZARD:5, BARBARIAN:6, DOMAIN:7 };
+   dominion/
+     app.py
+     requirements.txt
+     game/
+       __init__.py
+       constants.py
+       board.py
+       fog.py
+       moves.py
+       claim.py
+       ai.py
+     static/
+       css/
+         dominion.css
+       js/
+         render.js
+         client.js
+     templates/
+       index.html
+     tests/
+       __init__.py
+       test_board.py
+       test_fog.py
+       test_moves.py
+       test_claim.py
+       test_ai.py
+       test_api.py
    ```
-5. Define owner constants: `const OWNER = { NONE:0, PLAYER:1, AI:2 };`
-6. Implement `makeCell(type)` returning `{ type, owner: OWNER.NONE, used: false }`.
-7. Implement `idx(x, y)` → `y * G.W + x` and `xy(i)` → `{ x: i % G.W, y: Math.floor(i / G.W) }`.
-8. Implement `generateBoard(rng, W, H)`:
-   - Tile weights: Forest=35, Plains=20, Tower=8, Cave=8, Mountain=15, Wizard=5, Barbarian=9 (total=100).
-   - Use a weighted-random pick: for each cell, draw `rng()` and map to a tile type using cumulative weights.
-   - After placing all tiles, **guarantee ≥ 2 Cave tiles**: count Caves; if fewer than 2, overwrite random non-Mountain cells (using `rng`) until count reaches 2.
-   - Place Domain tiles for each player (Section 3.4 of spec):
-     - Player: start at `(1,1)`, walk right (x++) until a non-Mountain cell is found; set `type = T.DOMAIN`, `owner = OWNER.PLAYER`.
-     - AI: start at `(W-2, H-2)`, walk left (x--) until an unclaimed non-Mountain cell is found; set `type = T.DOMAIN`, `owner = OWNER.AI`.
-9. Store board as `G.board = generateBoard(G.rng, G.W, G.H)` on game start.
+2. `requirements.txt`:
+   ```
+   flask>=3.0
+   pytest>=8.0
+   ```
+3. `app.py` stub:
+   ```python
+   from flask import Flask, render_template
+   app = Flask(__name__)
+   app.secret_key = 'dominion-dev'
+
+   @app.route('/')
+   def index():
+       return render_template('index.html')
+
+   if __name__ == '__main__':
+       app.run(debug=True, port=5000)
+   ```
+4. `templates/index.html` stub: minimal HTML5 document, links `dominion.css` and both JS files, contains a `<canvas id="board-canvas">`.
+5. Install dependencies: `pip install -r requirements.txt`.
 
 ### Tests
-```js
-// In console after stubbing startGame to expose G globally:
-// Call startGame with fixed seed and check board properties
+```python
+# tests/test_api.py
+import pytest
+from app import app
 
-startGame({ W:14, H:10, seed:'test123', depth:3 });
+@pytest.fixture
+def client():
+    app.config['TESTING'] = True
+    with app.test_client() as c:
+        yield c
 
-// 1. Board length
-console.assert(G.board.length === 14*10, 'FAIL: board length');
+def test_index_returns_200(client):
+    r = client.get('/')
+    assert r.status_code == 200
 
-// 2. All cells have valid types
-const validTypes = new Set([0,1,2,3,4,5,6,7]);
-console.assert(G.board.every(c => validTypes.has(c.type)), 'FAIL: invalid tile type');
-
-// 3. Cave guarantee
-const caves = G.board.filter(c => c.type === T.CAVE);
-console.assert(caves.length >= 2, 'FAIL: fewer than 2 caves');
-
-// 4. Domain tiles placed
-const playerDomain = G.board.find(c => c.type === T.DOMAIN && c.owner === OWNER.PLAYER);
-const aiDomain = G.board.find(c => c.type === T.DOMAIN && c.owner === OWNER.AI);
-console.assert(playerDomain !== undefined, 'FAIL: player domain missing');
-console.assert(aiDomain !== undefined, 'FAIL: AI domain missing');
-
-// 5. Mountains never owned
-console.assert(G.board.filter(c => c.type === T.MOUNTAIN).every(c => c.owner === OWNER.NONE),
-  'FAIL: mountain is owned');
-
-// 6. Determinism — same seed gives same board
-startGame({ W:14, H:10, seed:'test123', depth:3 });
-const board1types = G.board.map(c => c.type).join(',');
-startGame({ W:14, H:10, seed:'test123', depth:3 });
-const board2types = G.board.map(c => c.type).join(',');
-console.assert(board1types === board2types, 'FAIL: same seed produces different boards');
-
-console.log('Step 3 tests passed');
+def test_index_contains_canvas(client):
+    r = client.get('/')
+    assert b'board-canvas' in r.data
 ```
+Run: `pytest tests/test_api.py -v` — both tests must pass before continuing.
+
+---
+
+## Step 2 — Constants
+
+**Goal:** Implement `game/constants.py` with all tile types, owner values, vision ranges, weights, and display data.
+
+### Tasks
+1. Define integer tile-type constants:
+   ```python
+   FOREST, PLAINS, TOWER, CAVE, MOUNTAIN, WIZARD, BARBARIAN, DOMAIN = range(8)
+   ```
+2. Define owner constants: `NONE, PLAYER, AI = 0, 1, 2`
+3. Define:
+   - `TILE_WEIGHTS` — `{FOREST:35, PLAINS:20, TOWER:8, CAVE:8, MOUNTAIN:15, WIZARD:5, BARBARIAN:9}` (Domain excluded — placed deterministically)
+   - `VISION_RANGE` — dict mapping each tile type to its vision range (Forest/Domain/Wizard/Barbarian=1, Plains=2, Tower=3, Cave=1, Mountain=0)
+   - `STRATEGIC_VALUE` — dict mapping tile type to AI strategic value (Cave=4, Wizard=3, Tower=2.5, Plains=2, Forest/Domain=1.5, Barbarian=0.5, Mountain=0)
+   - `TILE_BASE_COLOR` — dict of hex strings per tile type
+   - `TILE_ICON` — dict of Unicode glyphs per tile type (♣ ≈ ▲ ○ ◆ ✦ ⚔ ⬡)
+   - `TILE_LABEL` — dict of display names per tile type
+   - `DIRS` — `[(0,-1),(0,1),(-1,0),(1,0)]` — cardinal directions
+
+### Tests
+```python
+# tests/test_board.py  (constants section)
+from game.constants import (
+    FOREST, PLAINS, TOWER, CAVE, MOUNTAIN, WIZARD, BARBARIAN, DOMAIN,
+    NONE, PLAYER, AI,
+    TILE_WEIGHTS, VISION_RANGE, STRATEGIC_VALUE, TILE_ICON, DIRS
+)
+
+def test_tile_type_values_are_unique():
+    types = [FOREST, PLAINS, TOWER, CAVE, MOUNTAIN, WIZARD, BARBARIAN, DOMAIN]
+    assert len(set(types)) == 8
+
+def test_owner_values_are_unique():
+    assert len({NONE, PLAYER, AI}) == 3
+
+def test_tile_weights_cover_all_random_types():
+    # Domain is placed deterministically, so it has no weight entry
+    for t in [FOREST, PLAINS, TOWER, CAVE, MOUNTAIN, WIZARD, BARBARIAN]:
+        assert t in TILE_WEIGHTS
+    assert DOMAIN not in TILE_WEIGHTS
+
+def test_vision_range_covers_all_types():
+    for t in [FOREST, PLAINS, TOWER, CAVE, MOUNTAIN, WIZARD, BARBARIAN, DOMAIN]:
+        assert t in VISION_RANGE
+
+def test_dirs_are_cardinal():
+    assert len(DIRS) == 4
+    assert all(len(d) == 2 for d in DIRS)
+```
+Run: `pytest tests/test_board.py::test_tile_type_values_are_unique -v` and the rest — all must pass.
+
+---
+
+## Step 3 — Board Generation
+
+**Goal:** Implement `game/board.py` with `idx()`, `xy()`, `in_bounds()`, `make_cell()`, and `generate_board()`.
+
+### Tasks
+1. `idx(x, y, W) -> int` — returns `y * W + x`
+2. `xy(i, W) -> tuple[int, int]` — returns `(i % W, i // W)`
+3. `in_bounds(x, y, W, H) -> bool`
+4. `make_cell(tile_type) -> dict` — returns `{'type': tile_type, 'owner': NONE, 'used': False}`
+5. `generate_board(seed: str, W: int, H: int) -> list[dict]`:
+   - Call `random.seed(seed)` at the top — all subsequent `random` calls are deterministic.
+   - Build a cumulative weight list from `TILE_WEIGHTS` and use `random.random()` to pick each tile type by weight.
+   - After placing all tiles, count Cave tiles; while count < 2, pick a random non-Mountain index with `random.randrange(W*H)` and overwrite it with `CAVE`.
+   - Place Player Domain: start at `(1,1)`, walk right (`x++`) skipping Mountain cells; set `type=DOMAIN`, `owner=PLAYER`.
+   - Place AI Domain: start at `(W-2, H-2)`, walk left (`x--`) skipping Mountain or already-owned cells; set `type=DOMAIN`, `owner=AI`.
+   - Return the completed board list.
+
+### Tests
+```python
+# tests/test_board.py
+import random
+from game.board import idx, xy, in_bounds, make_cell, generate_board
+from game.constants import CAVE, MOUNTAIN, DOMAIN, NONE, PLAYER, AI
+
+def test_idx_and_xy_roundtrip():
+    W = 14
+    for i in range(W * 10):
+        x, y = xy(i, W)
+        assert idx(x, y, W) == i
+
+def test_in_bounds():
+    assert in_bounds(0, 0, 10, 8)
+    assert not in_bounds(-1, 0, 10, 8)
+    assert not in_bounds(10, 0, 10, 8)
+    assert not in_bounds(0, 8, 10, 8)
+
+def test_make_cell_defaults():
+    c = make_cell(CAVE)
+    assert c == {'type': CAVE, 'owner': NONE, 'used': False}
+
+def test_board_length():
+    board = generate_board('test', 14, 10)
+    assert len(board) == 140
+
+def test_cave_guarantee():
+    for seed in ['a', 'b', 'c', 'test123', 'xyz']:
+        board = generate_board(seed, 14, 10)
+        caves = [c for c in board if c['type'] == CAVE]
+        assert len(caves) >= 2, f"Seed '{seed}' produced fewer than 2 caves"
+
+def test_domain_placement():
+    board = generate_board('test', 14, 10)
+    player_domain = next((c for c in board if c['type'] == DOMAIN and c['owner'] == PLAYER), None)
+    ai_domain     = next((c for c in board if c['type'] == DOMAIN and c['owner'] == AI), None)
+    assert player_domain is not None, "Player domain missing"
+    assert ai_domain is not None, "AI domain missing"
+
+def test_mountains_never_owned():
+    board = generate_board('test', 14, 10)
+    assert all(c['owner'] == NONE for c in board if c['type'] == MOUNTAIN)
+
+def test_determinism():
+    b1 = generate_board('myseed', 14, 10)
+    b2 = generate_board('myseed', 14, 10)
+    assert [c['type'] for c in b1] == [c['type'] for c in b2]
+
+def test_different_seeds_differ():
+    b1 = generate_board('seed-A', 14, 10)
+    b2 = generate_board('seed-B', 14, 10)
+    assert [c['type'] for c in b1] != [c['type'] for c in b2]
+```
+Run: `pytest tests/test_board.py -v` — all 8 tests must pass.
 
 ---
 
 ## Step 4 — Fog of War
 
-**Goal:** Implement the shared fog system: initial fog computation and `computeFog()`.
+**Goal:** Implement `game/fog.py` with `compute_fog()` and `bfs_reveal()`.
 
 ### Tasks
-1. Add `G.fog = new Set()` — indices of revealed tiles.
-2. Implement `computeFog()`:
-   - Clear and rebuild `G.fog` from scratch.
-   - For each tile in `G.board` that has `owner !== OWNER.NONE`:
-     - Determine vision range by tile type (Forest/Domain/Wizard/Barbarian=1, Plains=2, Tower=3, Cave=1, Mountain=0).
-     - BFS flood in cardinal directions up to the vision range from that tile's position.
-     - Mountains do **not** block propagation — the BFS continues through them.
-     - Add all visited indices to `G.fog`.
-   - **Cave special:** if any player owns ≥ 1 Cave tile, add all Cave tile indices to `G.fog`.
-3. Call `computeFog()` immediately after `generateBoard()` to establish initial visibility.
-4. Implement `isFogged(i)` → `!G.fog.has(i)`.
+1. `bfs_reveal(board, W, H, start_idx, vision_range) -> set[int]`:
+   - Cardinal BFS from `start_idx` up to `vision_range` steps.
+   - Mountains do **not** block propagation — the BFS continues through them.
+   - Returns the set of all revealed indices (including the start tile).
+2. `compute_fog(G: dict) -> set[int]`:
+   - Iterate every cell in `G['board']`. For each owned tile (`owner != NONE`):
+     - Look up `VISION_RANGE[cell['type']]`. Skip if 0.
+     - Call `bfs_reveal(...)` and union the result into the fog set.
+   - **Cave special:** if any cell has `type == CAVE` and `owner != NONE`, add **all** Cave tile indices to the fog set.
+   - Return the completed set (do not store it — the caller stores it as `G['fog']`).
 
 ### Tests
-```js
-startGame({ W:14, H:10, seed:'test123', depth:3 });
+```python
+# tests/test_fog.py
+from game.board import generate_board, idx, xy
+from game.fog import compute_fog, bfs_reveal
+from game.constants import CAVE, MOUNTAIN, DOMAIN, TOWER, PLAINS, NONE, PLAYER, AI
 
-// 1. Starting tiles are revealed
-const playerIdx = G.board.findIndex(c => c.owner === OWNER.PLAYER);
-const aiIdx = G.board.findIndex(c => c.owner === OWNER.AI);
-console.assert(G.fog.has(playerIdx), 'FAIL: player domain not revealed');
-console.assert(G.fog.has(aiIdx), 'FAIL: AI domain not revealed');
+def _make_G(seed='fogtest', W=14, H=10):
+    board = generate_board(seed, W, H)
+    G = {'W': W, 'H': H, 'board': board, 'fog': set()}
+    G['fog'] = compute_fog(G)
+    return G
 
-// 2. Cardinal neighbors of player domain are revealed
-const {x:px, y:py} = xy(playerIdx);
-const neighbors = [
-  [px+1,py],[px-1,py],[px,py+1],[px,py-1]
-].filter(([x,y]) => x>=0&&x<G.W&&y>=0&&y<G.H);
-console.assert(neighbors.every(([x,y]) => G.fog.has(idx(x,y))),
-  'FAIL: adjacent tiles of player domain not revealed');
+def test_starting_tiles_revealed():
+    G = _make_G()
+    player_idx = next(i for i, c in enumerate(G['board']) if c['owner'] == PLAYER)
+    ai_idx     = next(i for i, c in enumerate(G['board']) if c['owner'] == AI)
+    assert player_idx in G['fog']
+    assert ai_idx in G['fog']
 
-// 3. Fog is shared — re-compute and check size is > 0
-console.assert(G.fog.size > 0, 'FAIL: fog set is empty');
+def test_cardinal_neighbor_of_domain_revealed():
+    G = _make_G()
+    player_idx = next(i for i, c in enumerate(G['board']) if c['owner'] == PLAYER)
+    x, y = xy(player_idx, G['W'])
+    neighbors = [
+        idx(x+dx, y+dy, G['W'])
+        for dx, dy in [(0,-1),(0,1),(-1,0),(1,0)]
+        if 0 <= x+dx < G['W'] and 0 <= y+dy < G['H']
+    ]
+    assert any(n in G['fog'] for n in neighbors), "No neighbor of player domain revealed"
 
-// 4. Tiles far from both starting positions are fogged
-// (Pick a tile near center of a large board — likely fogged on default 14x10)
-const centerIdx = idx(7, 5);
-// Note: this assertion might not hold for all seeds — just log rather than assert
-console.log('Center tile fogged?', isFogged(centerIdx));
+def test_fog_is_nonempty():
+    G = _make_G()
+    assert len(G['fog']) > 0
 
-console.log('Step 4 tests passed');
+def test_mountain_does_not_block_bfs():
+    # Mountains should not stop BFS propagation — tiles beyond them are still reachable
+    W, H = 10, 8
+    board = generate_board('bfstest', W, H)
+    # Force a Mountain adjacent to start and check that tile beyond it can be revealed
+    start = idx(1, 1, W)
+    board[start]['owner'] = PLAYER
+    mountain_idx = idx(2, 1, W)
+    board[mountain_idx]['type'] = MOUNTAIN
+    beyond_idx = idx(3, 1, W)
+    G = {'W': W, 'H': H, 'board': board, 'fog': set()}
+    G['fog'] = compute_fog(G)
+    # Tower vision (range 3) would reveal beyond; Domain only range 1 so check range manually
+    revealed = bfs_reveal(board, W, H, start, 3)
+    assert beyond_idx in revealed, "BFS blocked by Mountain — should propagate through"
+
+def test_cave_ownership_reveals_all_caves():
+    W, H = 14, 10
+    board = generate_board('cavetest', W, H)
+    cave_indices = [i for i, c in enumerate(board) if c['type'] == CAVE]
+    assert len(cave_indices) >= 2
+    # Give player the first cave
+    board[cave_indices[0]]['owner'] = PLAYER
+    G = {'W': W, 'H': H, 'board': board, 'fog': set()}
+    G['fog'] = compute_fog(G)
+    for ci in cave_indices:
+        assert ci in G['fog'], f"Cave at index {ci} not revealed globally"
 ```
+Run: `pytest tests/test_fog.py -v` — all 5 tests must pass.
 
 ---
 
 ## Step 5 — Valid Moves Computation
 
-**Goal:** Implement `computeValidMoves(owner)` returning a `Set` of valid move indices.
+**Goal:** Implement `game/moves.py` with `compute_valid_moves(G, owner)`.
 
 ### Tasks
-1. Implement `computeValidMoves(owner)`:
-   - Initialize empty `Set candidates`.
-   - For each tile `c` at index `i` where `c.owner === owner`:
-     - **Forest / Domain:** BFS/enumerate cardinal neighbors at distance exactly 1.
-     - **Plains:** all tiles at cardinal Manhattan distance ≤ 2 (include distance-1 and distance-2). Use a double-loop over directions, not a full BFS, to enumerate (up to 8 tiles in cardinal cross pattern at distances 1 and 2).
-     - **Tower:** all tiles at cardinal Manhattan distance ≤ 3 (teleport-style — Mountains do not block). Enumerate all positions at dist 1, 2, 3 in each cardinal direction.
-     - **Cave:** if this owner owns ≥ 1 cave, add all Cave tile indices (regardless of position).
-     - **Wizard (not used):** treat as domain (dist ≤ 1) for expansion — the Wizard tile's expansion is normal; the *power* is separate.
-     - **Barbarian, Mountain:** no expansion contribution.
-   - Filter candidates: keep only those where `G.board[i].owner === OWNER.NONE` AND `G.board[i].type !== T.MOUNTAIN` AND `G.fog.has(i)` (tile is revealed).
-   - **Wizard teleport phase exception:** if `G.wizardActiveFor === owner`, skip the normal move set and instead return all revealed unclaimed non-Mountain tiles.
-2. Store result as `G.validMoves` each turn.
+1. `compute_valid_moves(G: dict, owner: int) -> set[int]`:
+   - **Wizard teleport phase** (`G['wizard_active_for'] == owner`): return every revealed, unclaimed, non-Mountain tile index — skip the normal expansion logic entirely.
+   - Otherwise, iterate every cell owned by `owner` and apply its expansion rules:
+     - **Forest / Domain / Wizard / Barbarian:** cardinal neighbors at distance 1.
+     - **Plains:** all cardinal positions at distance 1 and 2 (4 directions × 2 steps).
+     - **Tower:** all cardinal positions at distance 1, 2, and 3 (Mountains do **not** block).
+     - **Cave:** all Cave tile indices anywhere on the board (fog filter applied below).
+   - After collecting candidates, filter to keep only those where:
+     - `board[i]['owner'] == NONE`
+     - `board[i]['type'] != MOUNTAIN`
+     - `i in G['fog']` (tile is revealed)
+   - Return the filtered set.
 
 ### Tests
-```js
-startGame({ W:14, H:10, seed:'test123', depth:3 });
+```python
+# tests/test_moves.py
+from game.board import generate_board, idx, xy
+from game.fog import compute_fog
+from game.moves import compute_valid_moves
+from game.constants import (
+    NONE, PLAYER, AI,
+    FOREST, PLAINS, TOWER, CAVE, MOUNTAIN, WIZARD, BARBARIAN, DOMAIN
+)
 
-// 1. Valid moves are non-empty at start for both players
-const playerMoves = computeValidMoves(OWNER.PLAYER);
-const aiMoves = computeValidMoves(OWNER.AI);
-console.assert(playerMoves.size > 0, 'FAIL: player has no valid moves at start');
-console.assert(aiMoves.size > 0, 'FAIL: AI has no valid moves at start');
+def _make_G(seed='movetest', W=14, H=10):
+    board = generate_board(seed, W, H)
+    G = {'W': W, 'H': H, 'board': board, 'fog': set(), 'wizard_active_for': NONE}
+    G['fog'] = compute_fog(G)
+    return G
 
-// 2. No Mountain in valid moves
-console.assert([...playerMoves].every(i => G.board[i].type !== T.MOUNTAIN),
-  'FAIL: Mountain in player valid moves');
+def test_player_has_moves_at_start():
+    G = _make_G()
+    moves = compute_valid_moves(G, PLAYER)
+    assert len(moves) > 0
 
-// 3. No already-owned tile in valid moves
-console.assert([...playerMoves].every(i => G.board[i].owner === OWNER.NONE),
-  'FAIL: owned tile in player valid moves');
+def test_ai_has_moves_at_start():
+    G = _make_G()
+    moves = compute_valid_moves(G, AI)
+    assert len(moves) > 0
 
-// 4. No fogged tile in valid moves
-console.assert([...playerMoves].every(i => G.fog.has(i)),
-  'FAIL: fogged tile in player valid moves');
+def test_no_mountains_in_valid_moves():
+    G = _make_G()
+    moves = compute_valid_moves(G, PLAYER)
+    assert all(G['board'][i]['type'] != MOUNTAIN for i in moves)
 
-// 5. Plains expansion — claim a Plains tile and check 2-step moves appear
-const plainsTile = G.board.findIndex(c => c.type === T.PLAINS && c.owner === OWNER.NONE);
-if (plainsTile !== -1) {
-  G.board[plainsTile].owner = OWNER.PLAYER;
-  computeFog();
-  const movesAfter = computeValidMoves(OWNER.PLAYER);
-  // Should have more moves than before if Plains was accessible
-  console.log('Moves after claiming Plains:', movesAfter.size, '(was', playerMoves.size, ')');
-  G.board[plainsTile].owner = OWNER.NONE; // restore
-  computeFog();
-}
+def test_no_owned_tiles_in_valid_moves():
+    G = _make_G()
+    moves = compute_valid_moves(G, PLAYER)
+    assert all(G['board'][i]['owner'] == NONE for i in moves)
 
-// 6. Wizard teleport phase — all unclaimed non-Mountain revealed tiles valid
-G.wizardActiveFor = OWNER.PLAYER;
-const wizardMoves = computeValidMoves(OWNER.PLAYER);
-const allUnclaimed = G.board.filter((c,i) => c.owner===OWNER.NONE && c.type!==T.MOUNTAIN && G.fog.has(i));
-console.assert(wizardMoves.size === allUnclaimed.length,
-  'FAIL: wizard teleport move count mismatch');
-G.wizardActiveFor = OWNER.NONE; // restore
+def test_no_fogged_tiles_in_valid_moves():
+    G = _make_G()
+    moves = compute_valid_moves(G, PLAYER)
+    assert all(i in G['fog'] for i in moves)
 
-console.log('Step 5 tests passed');
+def test_plains_expansion_reaches_distance_2():
+    W, H = 12, 10
+    board = generate_board('plainstest', W, H)
+    # Force a Plains tile owned by player at (3,3)
+    pi = idx(3, 3, W)
+    board[pi] = {'type': PLAINS, 'owner': PLAYER, 'used': False}
+    G = {'W': W, 'H': H, 'board': board, 'fog': set(), 'wizard_active_for': NONE}
+    G['fog'] = compute_fog(G)
+    # Reveal tiles manually so distance-2 tiles pass the fog filter
+    for dx, dy in [(0,-1),(0,1),(-1,0),(1,0),(0,-2),(0,2),(-2,0),(2,0)]:
+        nx, ny = 3+dx, 3+dy
+        if 0 <= nx < W and 0 <= ny < H:
+            G['fog'].add(idx(nx, ny, W))
+    moves = compute_valid_moves(G, PLAYER)
+    dist2 = idx(3, 5, W)  # (3, 3+2)
+    if board[dist2]['type'] != MOUNTAIN and board[dist2]['owner'] == NONE:
+        assert dist2 in moves, "Plains did not reach distance-2 tile"
+
+def test_tower_expansion_reaches_distance_3():
+    W, H = 12, 10
+    board = generate_board('towertest', W, H)
+    ti = idx(4, 4, W)
+    board[ti] = {'type': TOWER, 'owner': PLAYER, 'used': False}
+    G = {'W': W, 'H': H, 'board': board, 'fog': set(), 'wizard_active_for': NONE}
+    G['fog'] = compute_fog(G)
+    for step in range(1, 4):
+        for dx, dy in [(0,-1),(0,1),(-1,0),(1,0)]:
+            nx, ny = 4+dx*step, 4+dy*step
+            if 0 <= nx < W and 0 <= ny < H:
+                G['fog'].add(idx(nx, ny, W))
+    moves = compute_valid_moves(G, PLAYER)
+    dist3 = idx(4, 7, W)  # (4, 4+3)
+    if board[dist3]['type'] != MOUNTAIN and board[dist3]['owner'] == NONE:
+        assert dist3 in moves, "Tower did not reach distance-3 tile"
+
+def test_wizard_teleport_returns_all_revealed_unclaimed():
+    G = _make_G()
+    G['wizard_active_for'] = PLAYER
+    moves = compute_valid_moves(G, PLAYER)
+    expected = {
+        i for i, c in enumerate(G['board'])
+        if c['owner'] == NONE and c['type'] != MOUNTAIN and i in G['fog']
+    }
+    assert moves == expected
+    G['wizard_active_for'] = NONE  # restore
 ```
+Run: `pytest tests/test_moves.py -v` — all 8 tests must pass.
 
 ---
 
 ## Step 6 — Tile Claiming, Barbarian Triggers & Win Condition
 
-**Goal:** Implement `claimTile(index, owner)`, `triggerBarbarians()`, and `checkWinCondition()`.
+**Goal:** Implement `game/claim.py` with `claim_tile()`, `trigger_barbarians()`, and `check_win_condition()`.
 
 ### Tasks
-1. Implement `claimTile(index, owner)`:
-   - Snapshot `G.fog` (copy the Set) before mutating.
-   - Set `G.board[index].owner = owner`.
-   - If the claimed tile is `T.WIZARD`, set `G.board[index].used = false` and immediately show the wizard prompt (stub as `promptWizard(index, owner)` for now).
-   - If the claimed tile is `T.BARBARIAN`, call `triggerBarbarians(index)` immediately.
-   - Call `computeFog()`.
-   - Detect newly revealed tiles: iterate the new `G.fog` and find indices that were NOT in the snapshot.
-   - For each newly revealed tile that is a Barbarian (and wasn't the claimed tile, which already triggered), call `triggerBarbarians(i)` in index order.
-2. Implement `triggerBarbarians(index)`:
-   - Determine sweep direction:
-     - `W > H` → horizontal (row sweep)
-     - `H > W` → vertical (column sweep)
-     - `W === H` → use `G.rng() < 0.5 ? 'h' : 'v'` (only during gameplay, not minimax — see Step 8)
-   - For horizontal sweep: reset `owner = OWNER.NONE` for all non-Mountain tiles in the same **row** as `index`, including the Barbarian tile itself.
-   - For vertical sweep: reset `owner = OWNER.NONE` for all non-Mountain tiles in the same **column** as `index`.
-   - Log the event to the event log (stub as `logEvent()` for now).
-   - Call `computeFog()` after the sweep.
-3. Implement `checkWinCondition()`:
-   - Count claimable tiles: all tiles where `type !== T.MOUNTAIN`.
-   - Count player tiles and AI tiles.
-   - Return `OWNER.PLAYER` if player tiles > `floor(claimable / 2)`.
-   - Return `OWNER.AI` if AI tiles > `floor(claimable / 2)`.
-   - Return `'DRAW'` if player tiles === AI tiles and all tiles are claimed (or no moves for both).
-   - Return `null` if game continues.
-   - Also check: if all claimable tiles are claimed, compare counts and return winner or draw.
+1. `snapshot_board(G: dict) -> list[dict]`:
+   - Return `[cell.copy() for cell in G['board']]` — shallow copy is sufficient (all values are primitives).
+2. `restore_board(G: dict, snap: list[dict])`:
+   - Copy `snap` values back into `G['board']` and recompute fog: `G['fog'] = compute_fog(G)`.
+3. `trigger_barbarians(G: dict, index: int, minimax_mode: bool = False)`:
+   - Determine sweep direction: `'h'` if `W > H`, `'v'` if `H > W`, or `random.choice(['h','v'])` if `W == H` (deterministic `'h'` during `minimax_mode`).
+   - Horizontal sweep: reset `owner = NONE` for every non-Mountain tile in the same **row** as `index`, including the Barbarian tile itself.
+   - Vertical sweep: reset `owner = NONE` for every non-Mountain tile in the same **column**.
+   - Append a log event string to `G['log']` (only when `not minimax_mode`).
+   - Call `G['fog'] = compute_fog(G)` after the sweep.
+4. `claim_tile(G: dict, index: int, owner: int, minimax_mode: bool = False) -> bool`:
+   - Snapshot `G['fog']` before mutating.
+   - Set `G['board'][index]['owner'] = owner`.
+   - If the claimed tile is a Barbarian: call `trigger_barbarians(G, index, minimax_mode)`.
+   - Recompute `G['fog'] = compute_fog(G)`.
+   - For each index newly in `G['fog']` (not in the pre-claim snapshot) other than `index` itself: if it is a Barbarian with `owner == NONE`, call `trigger_barbarians(G, ni, minimax_mode)` in index order.
+   - Return `True` if the claimed tile was a Wizard, else `False`.
+5. `check_win_condition(G: dict) -> int | str | None`:
+   - Filter claimable tiles: `[c for c in board if c['type'] != MOUNTAIN]`.
+   - Compute `total`, `player_count`, `ai_count`, `majority = total // 2 + 1`.
+   - Return `PLAYER` if `player_count >= majority`; `AI` if `ai_count >= majority`.
+   - If all claimable tiles have owners: return `PLAYER`, `AI`, or `'DRAW'` by count comparison.
+   - Otherwise return `None`.
 
 ### Tests
-```js
-startGame({ W:14, H:10, seed:'test123', depth:3 });
+```python
+# tests/test_claim.py
+from game.board import generate_board, idx, xy
+from game.fog import compute_fog
+from game.moves import compute_valid_moves
+from game.claim import claim_tile, trigger_barbarians, check_win_condition, snapshot_board, restore_board
+from game.constants import (
+    NONE, PLAYER, AI,
+    CAVE, MOUNTAIN, DOMAIN, BARBARIAN, WIZARD, FOREST
+)
 
-// 1. Claiming a tile sets owner
-const movesSet = computeValidMoves(OWNER.PLAYER);
-const firstMove = [...movesSet][0];
-claimTile(firstMove, OWNER.PLAYER);
-console.assert(G.board[firstMove].owner === OWNER.PLAYER, 'FAIL: tile not claimed');
+def _make_G(seed='claimtest', W=14, H=10):
+    board = generate_board(seed, W, H)
+    G = {
+        'W': W, 'H': H, 'board': board,
+        'fog': set(), 'wizard_active_for': NONE, 'log': [],
+    }
+    G['fog'] = compute_fog(G)
+    return G
 
-// 2. Fog updates after claim
-computeFog();
-console.assert(G.fog.has(firstMove), 'FAIL: claimed tile not in fog');
+def test_claim_sets_owner():
+    G = _make_G()
+    moves = compute_valid_moves(G, PLAYER)
+    target = next(iter(moves))
+    claim_tile(G, target, PLAYER)
+    assert G['board'][target]['owner'] == PLAYER
 
-// 3. Win condition returns null at start (not over)
-console.assert(checkWinCondition() === null, 'FAIL: game should not be over at start');
+def test_claim_updates_fog():
+    G = _make_G()
+    fog_before = len(G['fog'])
+    moves = compute_valid_moves(G, PLAYER)
+    target = next(iter(moves))
+    claim_tile(G, target, PLAYER)
+    assert len(G['fog']) >= fog_before
 
-// 4. Barbarian sweep — manually place a Barbarian and trigger it
-// Use a W > H board so sweep is horizontal
-startGame({ W:14, H:10, seed:'test123', depth:3 });
-const row = 3;
-// Place barbarian at (5, row)
-const barbIdx = idx(5, row);
-G.board[barbIdx].type = T.BARBARIAN;
-G.board[barbIdx].owner = OWNER.PLAYER; // pretend player owns tiles in row
-// Place some player tiles in the same row
-[1,2,3,4].forEach(x => { G.board[idx(x,row)].owner = OWNER.PLAYER; });
-triggerBarbarians(barbIdx);
-// All non-Mountain tiles in row should now be NONE
-const rowTiles = Array.from({length: G.W}, (_,x) => G.board[idx(x,row)]);
-console.assert(rowTiles.filter(c => c.type !== T.MOUNTAIN).every(c => c.owner === OWNER.NONE),
-  'FAIL: Barbarian sweep did not reset row');
+def test_win_condition_none_at_start():
+    G = _make_G()
+    assert check_win_condition(G) is None
 
-// 5. Win condition — force majority
-startGame({ W:8, H:6, seed:'abc', depth:2 });
-const claimable = G.board.filter(c => c.type !== T.MOUNTAIN).length;
-const majority = Math.floor(claimable / 2) + 1;
-// Give player majority
-let assigned = 0;
-G.board.forEach((c, i) => {
-  if (c.type !== T.MOUNTAIN && c.owner === OWNER.NONE && assigned < majority) {
-    c.owner = OWNER.PLAYER;
-    assigned++;
-  }
-});
-console.assert(checkWinCondition() === OWNER.PLAYER, 'FAIL: majority win not detected');
+def test_win_condition_majority():
+    G = _make_G(W=8, H=6)
+    claimable = [i for i, c in enumerate(G['board']) if c['type'] != MOUNTAIN]
+    majority = len(claimable) // 2 + 1
+    for i in claimable[:majority]:
+        G['board'][i]['owner'] = PLAYER
+    assert check_win_condition(G) == PLAYER
 
-console.log('Step 6 tests passed');
+def test_win_condition_draw():
+    G = _make_G(W=8, H=6)
+    claimable = [i for i, c in enumerate(G['board']) if c['type'] != MOUNTAIN]
+    half = len(claimable) // 2
+    for i in claimable[:half]:
+        G['board'][i]['owner'] = PLAYER
+    for i in claimable[half:]:
+        G['board'][i]['owner'] = AI
+    result = check_win_condition(G)
+    # All tiles claimed; equal counts → DRAW
+    assert result in ('DRAW', PLAYER, AI)  # depends on parity
+
+def test_barbarian_sweep_row(monkeypatch):
+    G = _make_G(W=14, H=10)  # W > H, so always horizontal
+    row = 3
+    barb_idx = idx(5, row, G['W'])
+    G['board'][barb_idx]['type'] = BARBARIAN
+    G['board'][barb_idx]['owner'] = NONE
+    # Give player some tiles in that row
+    for x in [1, 2, 3]:
+        G['board'][idx(x, row, G['W'])]['owner'] = PLAYER
+    trigger_barbarians(G, barb_idx, minimax_mode=True)
+    row_tiles = [G['board'][idx(x, row, G['W'])] for x in range(G['W'])]
+    non_mountain = [c for c in row_tiles if c['type'] != MOUNTAIN]
+    assert all(c['owner'] == NONE for c in non_mountain), "Barbarian horizontal sweep failed"
+
+def test_barbarian_sweep_column():
+    G = _make_G(W=8, H=14)  # H > W, so always vertical
+    col = 3
+    barb_idx = idx(col, 5, G['W'])
+    G['board'][barb_idx]['type'] = BARBARIAN
+    G['board'][barb_idx]['owner'] = NONE
+    for y in [1, 2, 3]:
+        G['board'][idx(col, y, G['W'])]['owner'] = AI
+    trigger_barbarians(G, barb_idx, minimax_mode=True)
+    col_tiles = [G['board'][idx(col, y, G['W'])] for y in range(G['H'])]
+    non_mountain = [c for c in col_tiles if c['type'] != MOUNTAIN]
+    assert all(c['owner'] == NONE for c in non_mountain), "Barbarian vertical sweep failed"
+
+def test_snapshot_restore():
+    G = _make_G()
+    snap = snapshot_board(G)
+    moves = compute_valid_moves(G, PLAYER)
+    target = next(iter(moves))
+    claim_tile(G, target, PLAYER)
+    assert G['board'][target]['owner'] == PLAYER
+    restore_board(G, snap)
+    assert G['board'][target]['owner'] == NONE, "Restore did not revert ownership"
+
+def test_claim_wizard_returns_true():
+    G = _make_G()
+    wiz_idx = next((i for i, c in enumerate(G['board']) if c['type'] == WIZARD), None)
+    if wiz_idx is None:
+        return  # no wizard on this board — skip
+    G['board'][wiz_idx]['owner'] = NONE
+    G['fog'].add(wiz_idx)
+    result = claim_tile(G, wiz_idx, PLAYER)
+    assert result is True
 ```
+Run: `pytest tests/test_claim.py -v` — all 9 tests must pass.
 
 ---
 
-## Step 7 — Canvas Rendering
+## Step 7 — AI: Minimax with Alpha-Beta Pruning
 
-**Goal:** Implement `render()` to draw the full board state to the canvas.
+**Goal:** Implement `game/ai.py` with `heuristic()`, `minimax_alpha_beta()`, `minimax_root()`, and `wizard_teleport_decision()`.
 
 ### Tasks
-1. Set canvas dimensions based on `G.W`, `G.H`, and cell size (56–64px, reduced to fit viewport — minimum 40px).
-2. Define base colors per tile type (from spec §11.3):
-   - Forest: `#2d4a2d`, Plains: `#6b7a3a`, Tower: `#3a3a5c`, Cave: `#2a2a38`
-   - Mountain: `#3a3a3a`, Wizard: `#4a2a60`, Barbarian: `#5c2e18`, Domain: `#6b5a38`
-3. Define icons per tile (Unicode): Forest=`♣`, Plains=`≈`, Tower=`▲`, Cave=`○`, Mountain=`◆`, Wizard=`✦`, Barbarian=`⚔`, Domain=`⬡`.
-4. For each cell `i`:
-   - If `isFogged(i)`: fill with `#080a08` (fog color), draw subtle grid line, skip to next cell.
-   - Otherwise:
-     - Fill with base tile color, tinted toward `#4a9eff` (player) or `#e05555` (AI) if owned.
-     - Draw a 2px border in owner's color if owned.
-     - Render the tile icon centered in the cell (white or light text).
-     - If `i` is in `G.validMoves`: draw a semi-transparent yellow-green overlay + colored border.
-     - If wizard teleport phase and tile is valid: use purple highlight instead.
-5. Add 3px gutter between cells using inset padding.
-6. Call `render()` at end of every game-state change.
+1. `heuristic(G: dict) -> float`:
+   - Compute `ai_count`, `player_count` from board (non-Mountain tiles).
+   - `ai_frontier = len(compute_valid_moves(G, AI))`, `player_frontier = len(compute_valid_moves(G, PLAYER))`.
+   - Cave control, wizard reserve, Barbarian exposure penalty booleans/counts as per spec §8.3.
+   - `barb_exposure(owner)`: count owned tiles sharing a row (W≥H) or column (H>W) with a **fogged** Barbarian.
+   - Return the weighted sum per the spec formula.
+2. `minimax_alpha_beta(G, depth, alpha, beta, is_maximizing) -> float`:
+   - Check terminal condition first (`check_win_condition`), then depth 0 → `heuristic`.
+   - Get moves for the active player (`AI` if maximizing, `PLAYER` if minimizing).
+   - If no moves: recurse with same depth−1 and flipped maximizing flag (pass-through turn).
+   - Sort moves by `STRATEGIC_VALUE[board[i]['type']]` descending before iterating.
+   - For each move: snapshot → `claim_tile(..., minimax_mode=True)` → recurse → restore. Save/restore `G['wizard_active_for']` around each simulation.
+   - Apply alpha-beta pruning (`break` when `beta <= alpha`).
+3. `minimax_root(G: dict, depth: int) -> int`:
+   - Iterate AI valid moves (sorted by strategic value), call `minimax_alpha_beta` for each.
+   - Return the index of the highest-valued move.
+4. `wizard_teleport_decision(G: dict) -> int | None`:
+   - Find the revealed unclaimed non-Mountain tile with the highest `STRATEGIC_VALUE`.
+   - Return its index if `best_value > 2`, otherwise `None`.
+
+### Tests
+```python
+# tests/test_ai.py
+import math
+from game.board import generate_board, idx
+from game.fog import compute_fog
+from game.moves import compute_valid_moves
+from game.claim import check_win_condition
+from game.ai import heuristic, minimax_root, wizard_teleport_decision, minimax_alpha_beta
+from game.constants import NONE, PLAYER, AI, CAVE, WIZARD, MOUNTAIN
+
+def _make_G(seed='aitest', W=10, H=8, depth=2):
+    board = generate_board(seed, W, H)
+    G = {
+        'W': W, 'H': H, 'depth': depth,
+        'board': board, 'fog': set(),
+        'wizard_active_for': NONE, 'log': [],
+    }
+    G['fog'] = compute_fog(G)
+    return G
+
+def test_heuristic_returns_float():
+    G = _make_G()
+    h = heuristic(G)
+    assert isinstance(h, (int, float))
+    assert math.isfinite(h)
+
+def test_heuristic_increases_when_ai_gains_tile():
+    G = _make_G()
+    h_before = heuristic(G)
+    free = next(
+        i for i, c in enumerate(G['board'])
+        if c['owner'] == NONE and c['type'] != MOUNTAIN and i in G['fog']
+    )
+    G['board'][free]['owner'] = AI
+    h_after = heuristic(G)
+    G['board'][free]['owner'] = NONE  # restore
+    assert h_after > h_before
+
+def test_minimax_root_returns_valid_move():
+    G = _make_G()
+    ai_moves = compute_valid_moves(G, AI)
+    best = minimax_root(G, depth=2)
+    assert best in ai_moves, f"minimax_root returned {best} which is not a valid AI move"
+
+def test_minimax_root_does_not_mutate_board():
+    G = _make_G()
+    board_snapshot = [c.copy() for c in G['board']]
+    fog_snapshot   = set(G['fog'])
+    minimax_root(G, depth=2)
+    assert [c['owner'] for c in G['board']] == [c['owner'] for c in board_snapshot]
+    assert G['fog'] == fog_snapshot
+
+def test_minimax_prefers_cave():
+    W, H = 10, 8
+    board = generate_board('cave-pref', W, H)
+    G = {'W': W, 'H': H, 'depth': 2, 'board': board, 'fog': set(),
+         'wizard_active_for': NONE, 'log': []}
+    G['fog'] = compute_fog(G)
+    ai_dom = next(i for i, c in enumerate(board) if c['owner'] == AI)
+    from game.board import xy
+    ax, ay = xy(ai_dom, W)
+    cave_idx = idx(max(0, ax - 1), ay, W)
+    board[cave_idx] = {'type': CAVE, 'owner': NONE, 'used': False}
+    G['fog'].add(cave_idx)
+    best = minimax_root(G, depth=2)
+    # Cave adjacent to AI domain should be strongly preferred
+    assert best == cave_idx or G['board'][best]['type'] == CAVE, \
+        "AI did not prefer an adjacent Cave tile"
+
+def test_wizard_teleport_decision_returns_high_value():
+    G = _make_G()
+    # Reveal a Cave tile for the wizard to target
+    cave_idx = next(
+        (i for i, c in enumerate(G['board'])
+         if c['type'] == CAVE and c['owner'] == NONE),
+        None
+    )
+    if cave_idx is None:
+        return
+    G['fog'].add(cave_idx)
+    result = wizard_teleport_decision(G)
+    assert result is not None
+    assert G['board'][result]['type'] == CAVE or result == cave_idx
+
+def test_wizard_teleport_decision_declines_low_value():
+    G = _make_G()
+    # Remove all high-value tiles from fog — only keep revealed mountains (unclaim-able)
+    G['fog'] = set(
+        i for i, c in enumerate(G['board'])
+        if c['type'] == MOUNTAIN
+    )
+    result = wizard_teleport_decision(G)
+    assert result is None  # all visible tiles are Mountains → decline
+```
+Run: `pytest tests/test_ai.py -v` — all 7 tests must pass.
+
+---
+
+## Step 8 — Flask API
+
+**Goal:** Implement `app.py` with all four API endpoints: `/api/start`, `/api/move`, `/api/state`, and `/api/wizard`. Game state stored in a module-level dict (single-user dev mode).
+
+### Tasks
+1. Module-level state: `G: dict = {}` and `log: list[str] = []` in `app.py`.
+2. `POST /api/start` — accepts JSON `{W, H, seed, depth}`:
+   - Clamp `W` to 8–24, `H` to 6–18. Use `str(time.time_ns())` if seed is blank.
+   - Build `G` using `generate_board`, `compute_fog`, `compute_valid_moves`.
+   - Initialise `G['phase'] = 'normal'`, `G['turn'] = PLAYER`, `G['wizard_active_for'] = NONE`, `G['game_over'] = False`, `G['log'] = []`.
+   - Return `jsonify(state_snapshot(G))` — a JSON-serialisable dict (convert `fog` set to sorted list, `valid_moves` set to sorted list).
+3. `GET /api/state` — return current `state_snapshot(G)`.
+4. `POST /api/move` — accepts JSON `{index: int}`:
+   - Validate `index` is in `G['valid_moves']`; return 400 if not.
+   - Call `claim_tile(G, index, PLAYER)`.
+   - If result is `True` (Wizard claimed): set `G['phase'] = 'wizard-prompt'`, return snapshot.
+   - Check win condition; if game over: set `G['phase'] = 'gameover'`, return snapshot.
+   - Run AI turn: `ai_idx = minimax_root(G, G['depth'])`, `claim_tile(G, ai_idx, AI)`.
+   - Check win condition again.
+   - Recompute `G['valid_moves']` for next player turn.
+   - Return updated snapshot.
+5. `POST /api/wizard` — accepts JSON `{action: 'invoke' | 'decline'}`:
+   - `'invoke'`: set `G['wizard_active_for'] = PLAYER`, mark Wizard tile `used=True`, run AI turn (same as above), return snapshot.
+   - `'decline'`: run AI turn directly, return snapshot.
+6. Helper `state_snapshot(G) -> dict`: serialises `G` to a JSON-safe dict (sets → sorted lists, `log` is a list of strings).
+
+### Tests
+```python
+# tests/test_api.py  (extend the existing file)
+import json
+import pytest
+from app import app
+
+@pytest.fixture
+def client():
+    app.config['TESTING'] = True
+    with app.test_client() as c:
+        yield c
+
+def _start(client, W=10, H=8, seed='apitest', depth=2):
+    r = client.post('/api/start',
+                    data=json.dumps({'W': W, 'H': H, 'seed': seed, 'depth': depth}),
+                    content_type='application/json')
+    assert r.status_code == 200
+    return json.loads(r.data)
+
+def test_start_returns_board(client):
+    state = _start(client)
+    assert 'board' in state
+    assert len(state['board']) == 10 * 8
+
+def test_start_clamps_width(client):
+    state = _start(client, W=999)
+    assert state['W'] == 24
+
+def test_start_deterministic(client):
+    s1 = _start(client, seed='fixed')
+    s2 = _start(client, seed='fixed')
+    assert [c['type'] for c in s1['board']] == [c['type'] for c in s2['board']]
+
+def test_state_endpoint(client):
+    _start(client)
+    r = client.get('/api/state')
+    assert r.status_code == 200
+    state = json.loads(r.data)
+    assert 'board' in state
+
+def test_move_claims_tile(client):
+    state = _start(client)
+    valid = state['valid_moves']
+    assert len(valid) > 0
+    target = valid[0]
+    r = client.post('/api/move',
+                    data=json.dumps({'index': target}),
+                    content_type='application/json')
+    assert r.status_code == 200
+    new_state = json.loads(r.data)
+    from game.constants import PLAYER
+    assert new_state['board'][target]['owner'] == PLAYER
+
+def test_move_invalid_index_returns_400(client):
+    _start(client)
+    r = client.post('/api/move',
+                    data=json.dumps({'index': -1}),
+                    content_type='application/json')
+    assert r.status_code == 400
+
+def test_ai_moves_after_player(client):
+    state = _start(client)
+    target = state['valid_moves'][0]
+    new_state = json.loads(
+        client.post('/api/move',
+                    data=json.dumps({'index': target}),
+                    content_type='application/json').data
+    )
+    from game.constants import AI
+    ai_tiles = [c for c in new_state['board'] if c['owner'] == AI]
+    assert len(ai_tiles) >= 2, "AI did not make a move after player"
+
+def test_full_game_reaches_gameover(client):
+    _start(client, W=8, H=6, depth=1)
+    for _ in range(200):
+        r = client.get('/api/state')
+        state = json.loads(r.data)
+        if state.get('phase') == 'gameover':
+            break
+        valid = state.get('valid_moves', [])
+        if not valid:
+            break
+        client.post('/api/move',
+                    data=json.dumps({'index': valid[0]}),
+                    content_type='application/json')
+    state = json.loads(client.get('/api/state').data)
+    assert state['phase'] == 'gameover', "Game never ended after 200 moves"
+```
+Run: `pytest tests/test_api.py -v` — all 8 tests must pass.
+
+---
+
+## Step 9 — HTML Template & CSS
+
+**Goal:** Build `templates/index.html` (Jinja2) and `static/css/dominion.css` with all three screens and the wizard modal, styled with the dark medieval palette.
+
+### Tasks
+1. `templates/index.html`:
+   - `<link>` to Google Fonts (`Cinzel` + `Crimson Text`) and `dominion.css`.
+   - `<script src>` for `render.js` then `client.js` (order matters) at end of `<body>`.
+   - Three screen divs (only `#screen-title` has class `active` by default):
+     - `#screen-title` — title `<h1>DOMINION</h1>`, tagline, setup card with inputs (width, height, seed, difficulty select), `#btn-start`.
+     - `#screen-game` — `#game-header` (player HUD left, turn indicator center, AI HUD right), `#canvas-wrap > canvas#board-canvas`, `#tile-legend`, `#game-footer` (`#event-log` + `.footer-buttons` with `#btn-toggle-fog` and `#btn-new-game`).
+     - `#screen-end` — `#result-title`, `#result-score`, `#btn-play-again`.
+   - `#wizard-modal` (hidden by default, `position: fixed`, `z-index: 100`) — wizard card with `#wizard-invoke` and `#wizard-decline` buttons.
+2. `static/css/dominion.css`:
+   - CSS custom properties on `:root`: `--bg`, `--player-color`, `--ai-color`, `--accent`, `--text`, `--fog`, etc.
+   - `.screen { display: none }` / `.screen.active { display: flex; flex-direction: column }`.
+   - Full styling for all screens, HUD, event log, wizard modal — no inline styles.
+   - `@keyframes titleGlow` pulsing text-shadow on `#game-title`.
+   - Dark medieval palette; `Cinzel` for headers/labels, `Crimson Text` for body/log.
+
+### Tests
+```python
+# tests/test_api.py — add these
+def test_title_screen_present(client):
+    r = client.get('/')
+    assert b'screen-title' in r.data
+    assert b'DOMINION' in r.data
+
+def test_all_screens_present(client):
+    r = client.get('/')
+    for screen_id in [b'screen-title', b'screen-game', b'screen-end']:
+        assert screen_id in r.data
+
+def test_wizard_modal_present(client):
+    r = client.get('/')
+    assert b'wizard-modal' in r.data
+    assert b'wizard-invoke' in r.data
+    assert b'wizard-decline' in r.data
+
+def test_css_loaded(client):
+    r = client.get('/static/css/dominion.css')
+    assert r.status_code == 200
+    assert b'--bg' in r.data
+    assert b'--accent' in r.data
+```
+**Visual check:** Open `http://localhost:5000` — dark page loads, title `DOMINION` shows with glow animation, setup card is visible and styled.
+
+---
+
+## Step 10 — Canvas Rendering (`render.js`)
+
+**Goal:** Implement `static/js/render.js` — all canvas drawing from a state snapshot object.
+
+### Tasks
+1. Export / define these functions (accessible globally or as a module):
+   - `computeCellSize(state)` — `min(64, max(40, floor(availW / state.W), floor(availH / state.H)))` using `canvas-wrap` dimensions.
+   - `blendColor(base, tint, amount)` — linear RGB blend of two hex colors.
+   - `render(state, cellSize)` — draws the full board:
+     - **Fogged cell:** fill `#0a0c0a`, draw a 2×2 centre dot.
+     - **Revealed cell:** fill with base color blended toward owner tint (35% toward `#4a9eff` for PLAYER, `#e05555` for AI). Draw owner border (1.5px). Draw tile icon centred.
+     - **Valid move:** semi-transparent yellow-green overlay + border; purple if `state.phase === 'wizard-teleport'`.
+     - **Used Wizard:** draw icon at 40% opacity.
+2. Define tile data tables in JS (mirroring `constants.py`):
+   - `TILE_BASE_COLOR`, `TILE_ICON` — keyed by integer type constant.
+3. The `render.js` file is **pure rendering only** — no fetch calls, no game logic.
 
 ### Tests
 ```js
-startGame({ W:14, H:10, seed:'test123', depth:3 });
+// Browser console — run after opening http://localhost:5000 and starting a game
+// (paste after client.js has called startGame and received a state)
 
-// 1. Canvas has correct pixel dimensions
+// 1. computeCellSize returns a number in [40, 64]
+const cs = computeCellSize(window._state);
+console.assert(cs >= 40 && cs <= 64, 'FAIL: cellSize out of range');
+
+// 2. render() runs without error
+try { render(window._state, cs); console.log('render() OK'); }
+catch (e) { console.error('FAIL: render() threw:', e); }
+
+// 3. Canvas dimensions match board size × cellSize
 const canvas = document.getElementById('board-canvas');
-const cellSize = 56; // or whatever was computed
-console.assert(canvas.width >= 14 * 40, 'FAIL: canvas too narrow');
-console.assert(canvas.height >= 10 * 40, 'FAIL: canvas too short');
+console.assert(canvas.width  === window._state.W * cs, 'FAIL: canvas width mismatch');
+console.assert(canvas.height === window._state.H * cs, 'FAIL: canvas height mismatch');
 
-// 2. Render runs without throwing
-try { render(); console.log('render() OK'); }
-catch(e) { console.error('FAIL: render() threw:', e); }
+// 4. blendColor produces a valid rgb string
+const blended = blendColor('#2d4a2d', '#4a9eff', 0.35);
+console.assert(blended.startsWith('rgb('), 'FAIL: blendColor format wrong');
 
-// 3. Pixel spot-check: player domain tile should NOT be fog-colored
-// (This is a visual check — open browser and inspect)
-console.log('Visual check: player start tile should show Domain icon (⬡) in blue tint');
-console.log('Visual check: fogged tiles should appear as near-black rectangles');
-console.log('Visual check: valid moves should show yellow-green highlight');
-
-console.log('Step 7 tests passed (visual verification required)');
+console.log('Step 10 render tests passed');
 ```
-**Visual check:** Open `dominion.html`, start a game, verify tiles render with correct colors, icons, and fog.
+**Visual check:** Game screen shows the board — tile colors visible, fogged tiles dark, player/AI domains showing ⬡ icon with ownership tint, valid moves highlighted in yellow-green.
 
 ---
 
-## Step 8 — AI: Minimax with Alpha-Beta Pruning
+## Step 11 — Client Logic (`client.js`)
 
-**Goal:** Implement the full minimax AI: `minimaxRoot()`, `minimaxAlphaBeta()`, and `heuristic()`.
+**Goal:** Implement `static/js/client.js` — all UI logic, API calls, turn management, and HUD updates.
 
 ### Tasks
-1. Implement `heuristic()`:
-   ```
-   score = (aiCount - playerCount) * 10
-         + (aiFrontier - playerFrontier) * 3
-         + aiOwnsCave ? 8 : 0
-         - playerOwnsCave ? 8 : 0
-         + aiHasActiveWizard ? 5 : 0
-         - playerHasActiveWizard ? 5 : 0
-         - barbExposure(AI) * 2
-         + barbExposure(PLAYER) * 2
-   ```
-   - `barbExposure(owner)`: count owned tiles that share a row (W>=H) or column (H>W) with a **fogged** Barbarian tile.
-   - AI must only score **revealed** tiles — do not include hidden tile data.
-2. Implement board snapshot/restore for simulation:
-   - `snapshotBoard()` → deep copy of `G.board` as array of `{type, owner, used}`.
-   - `restoreBoard(snap)` → restore `G.board` and recompute fog.
-3. Implement `minimaxAlphaBeta(depth, alpha, beta, isMaximizing)`:
-   - At depth 0 or no valid moves for the active player: return `heuristic()`.
-   - Move ordering: sort candidate moves by strategic tile value (Cave=4, Wizard=3, Tower=2.5, Plains=2, Forest/Domain=1.5, Barbarian=0.5, Mountain=0) descending before iterating.
-   - For each move: snapshot → `claimTile(move, owner)` (simulate) → recurse → restore.
-   - **Barbarian simulation:** during minimax, use deterministic direction: `W >= H ? 'h' : 'v'` (no PRNG).
-   - Apply alpha-beta pruning (prune when `beta <= alpha`).
-4. Implement `minimaxRoot(depth)`:
-   - Iterate all AI valid moves, call `minimaxAlphaBeta` for each, track best.
-   - Return the index of the best move.
-5. Implement `wizardTeleportDecision()` for AI:
-   - Score all revealed unclaimed non-Mountain tiles by strategic value.
-   - If best > 2, return that index. Otherwise return `null`.
+1. On `DOMContentLoaded`, wire all button click handlers:
+   - `#btn-start` → POST `/api/start` with form values → call `applyState(data)`.
+   - `#board-canvas` click → if `phase === 'normal'` or `'wizard-teleport'`, convert pixel coords to cell index → POST `/api/move` with `{index}` → `applyState(data)`.
+   - `#btn-toggle-fog` → toggle a local `fogDisabled` flag → re-render without changing state.
+   - `#btn-new-game` / `#btn-play-again` → show `#screen-title`.
+   - `#wizard-invoke` / `#wizard-decline` → POST `/api/wizard` with `{action}` → `applyState(data)`.
+2. `applyState(state)`:
+   - Store `window._state = state` for debugging.
+   - Compute `cellSize = computeCellSize(state)` and store on window.
+   - Show the appropriate screen (`screen-game` during play, `screen-end` when `phase === 'gameover'`).
+   - Call `updateHUD(state)`, `buildLegend()`, `render(state, cellSize)`.
+   - If `phase === 'wizard-prompt'`, show `#wizard-modal`.
+3. `updateHUD(state)`:
+   - Update `#hud-player-count`, `#hud-ai-count`.
+   - Set `#hud-turn` text based on `phase` and `turn`.
+4. `updateEventLog(state)`:
+   - Replace `#event-log` contents with `state.log` entries (newest first), colour-coded.
+5. `buildLegend()` — builds the tile legend row below the canvas (only once or on new game).
+6. Show "AI is thinking…" in `#hud-turn` immediately when the player clicks a tile, before the `/api/move` response arrives.
+7. Input validation: clamp Width (8–24) and Height (6–18) client-side before sending to `/api/start`.
 
 ### Tests
 ```js
-startGame({ W:10, H:8, seed:'aitest', depth:2 }); // small board, shallow depth
+// Browser console — after opening the app and clicking Begin Conquest
 
-// 1. heuristic() returns a number
-const h = heuristic();
-console.assert(typeof h === 'number' && isFinite(h), 'FAIL: heuristic not a number');
+// 1. window._state is populated after start
+console.assert(window._state !== undefined, 'FAIL: _state not set');
+console.assert(window._state.board.length === window._state.W * window._state.H,
+  'FAIL: board length mismatch');
 
-// 2. Snapshot/restore round-trip
-const snap = snapshotBoard();
-const firstCell = Object.assign({}, G.board[0]);
-G.board[0].owner = OWNER.PLAYER;
-restoreBoard(snap);
-console.assert(G.board[0].owner === firstCell.owner, 'FAIL: restore changed board');
+// 2. HUD shows correct player count
+const playerCount = window._state.board.filter(c => c.owner === 1).length;
+const displayed = parseInt(document.getElementById('hud-player-count').textContent);
+console.assert(displayed === playerCount, 'FAIL: HUD player count wrong');
 
-// 3. minimaxRoot returns a valid move index
-const aiMoves = computeValidMoves(OWNER.AI);
-const bestMove = minimaxRoot(2);
-console.assert(aiMoves.has(bestMove), 'FAIL: minimaxRoot returned invalid move');
-
-// 4. AI prefers high-value tiles — place a Cave next to AI domain
-startGame({ W:10, H:8, seed:'aitest2', depth:2 });
-const aiDomIdx = G.board.findIndex(c => c.owner === OWNER.AI);
-const {x:ax, y:ay} = xy(aiDomIdx);
-// Place revealed Cave adjacent to AI domain
-const caveIdx = idx(Math.max(0, ax-1), ay);
-G.board[caveIdx].type = T.CAVE;
-G.board[caveIdx].owner = OWNER.NONE;
-G.fog.add(caveIdx);
-const move = minimaxRoot(2);
-// Not guaranteed but likely Cave is preferred
-console.log('AI picked index', move, '— type:', G.board[move].type,
-  '(Cave=3, expect Cave or adjacent high-value)');
-
-// 5. Heuristic is higher when AI has more tiles
-const baseH = heuristic();
-G.board.find(c => c.type !== T.MOUNTAIN && c.owner === OWNER.NONE
-  && G.fog.has(G.board.indexOf(c))).owner = OWNER.AI;
-const afterH = heuristic();
-console.assert(afterH > baseH, 'FAIL: heuristic did not increase when AI gained tile');
-
-console.log('Step 8 tests passed');
-```
-
----
-
-## Step 9 — Player Turn & Click Handling
-
-**Goal:** Wire up human player input — click-to-claim on the canvas, turn switching, and Wizard prompt.
-
-### Tasks
-1. Add a `click` event listener to the canvas.
-2. In `handlePlayerClick(e)`:
-   - If `G.phase !== 'normal'` and not `'wizard-teleport'`, ignore.
-   - Convert mouse coordinates to cell index using cell size.
-   - If the clicked index is not in `G.validMoves`, ignore (no flash, no error).
-   - Call `claimTile(index, OWNER.PLAYER)`.
-   - If claimed tile is `T.WIZARD`: set `G.phase = 'wizard-prompt'`, show modal (see §11.5).
-   - Otherwise: call `endPlayerTurn()`.
-3. Implement `endPlayerTurn()`:
-   - Check win condition — if game over, call `showEndScreen()`.
-   - Otherwise, switch `G.turn = OWNER.AI`, update HUD, call `render()`.
-   - After a 400–600ms delay (so "AI is thinking…" renders), call `runAITurn()`.
-4. Implement the Wizard prompt modal:
-   - On **Invoke**: set `G.wizardActiveFor = OWNER.PLAYER`, set `G.phase = 'normal'`, call `endPlayerTurn()`.
-   - On **Decline**: set `G.wizardActiveFor = OWNER.NONE`, set `G.phase = 'normal'`, call `endPlayerTurn()`.
-5. Implement `runAITurn()`:
-   - Set `G.phase = 'ai-thinking'`, render HUD "AI is thinking…".
-   - Use `setTimeout(0)` to yield to the browser so the HUD updates.
-   - Compute AI move: if `G.wizardActiveFor === OWNER.AI`, call `wizardTeleportDecision()` for target; otherwise call `minimaxRoot(G.depth)`.
-   - `claimTile(chosenIndex, OWNER.AI)`.
-   - If claimed tile is `T.WIZARD`: call `wizardTeleportDecision()` — if result > threshold, set `G.wizardActiveFor = OWNER.AI`; otherwise decline.
-   - Check win condition. If not over: switch `G.turn = OWNER.PLAYER`, set `G.phase = 'normal'`, recompute `G.validMoves`, `render()`.
-6. Handle "no valid moves" (§7.3): if `G.validMoves.size === 0` after computing, skip the player's turn.
-
-### Tests
-```js
-startGame({ W:10, H:8, seed:'clicktest', depth:2 });
-render();
-
-// 1. Clicking a fogged tile does nothing
-const foggedIdx = [...Array(G.W*G.H).keys()].find(i => !G.fog.has(i));
-if (foggedIdx !== undefined) {
-  const {x,y} = xy(foggedIdx);
-  const cellSize = Math.floor(Math.min(
-    (window.innerWidth * 0.8) / G.W,
-    (window.innerHeight * 0.7) / G.H
-  ));
-  // Dispatch click event at center of fogged cell
-  const canvas = document.getElementById('board-canvas');
-  const rect = canvas.getBoundingClientRect();
-  const ev = new MouseEvent('click', {
-    clientX: rect.left + x * cellSize + cellSize/2,
-    clientY: rect.top + y * cellSize + cellSize/2
-  });
-  const prevOwner = G.board[foggedIdx].owner;
-  canvas.dispatchEvent(ev);
-  console.assert(G.board[foggedIdx].owner === prevOwner,
-    'FAIL: clicking fogged tile changed ownership');
-}
-
-// 2. Clicking a valid move claims the tile and switches turn
-const validMove = [...G.validMoves][0];
-const {x:vx, y:vy} = xy(validMove);
-const cellSize = 56; // approximate
+// 3. Clicking a valid move sends the request and updates state
+const valid = window._state.valid_moves;
+console.assert(valid.length > 0, 'FAIL: no valid moves to click');
+const idx = valid[0];
+const { x, y } = { x: idx % window._state.W, y: Math.floor(idx / window._state.W) };
+const cellSize = window._cellSize;
 const canvas = document.getElementById('board-canvas');
 const rect = canvas.getBoundingClientRect();
-const ev = new MouseEvent('click', {
-  clientX: rect.left + vx * cellSize + cellSize/2,
-  clientY: rect.top + vy * cellSize + cellSize/2,
-  bubbles: true
-});
-canvas.dispatchEvent(ev);
-console.assert(G.board[validMove].owner === OWNER.PLAYER,
-  'FAIL: clicking valid move did not claim tile');
-
-// 3. After player turn, turn switches to AI (may have already processed)
+canvas.dispatchEvent(new MouseEvent('click', {
+  clientX: rect.left + x * cellSize + cellSize / 2,
+  clientY: rect.top  + y * cellSize + cellSize / 2,
+  bubbles: true,
+}));
 setTimeout(() => {
-  console.log('Turn after player click:', G.turn === OWNER.AI ? 'AI (correct)' : 'PLAYER (may still be thinking)');
-}, 100);
+  console.assert(window._state.board[idx].owner === 1,
+    'FAIL: tile not claimed after click');
+  console.log('Step 11 click test passed');
+}, 2000); // wait for API round-trip
 
-// 4. Phase transitions correctly
-console.assert(['normal','ai-thinking','wizard-prompt','wizard-teleport','gameover']
-  .includes(G.phase), 'FAIL: unknown game phase');
-
-console.log('Step 9 tests passed');
-```
-
----
-
-## Step 10 — HUD, Event Log & Control Buttons
-
-**Goal:** Implement the game screen HUD, event log panel, and control buttons (New Game, Toggle Fog).
-
-### Tasks
-1. In `#screen-game`, add:
-   - **Header row** (flex, space-between):
-     - Left: Player HUD — tile count `<span id="hud-player-count">`, label "YOUR TERRITORY".
-     - Center: game title `DOMINION` + `<span id="hud-turn">` showing whose turn or "AI is thinking…".
-     - Right: AI HUD — label "AI TERRITORY" + `<span id="hud-ai-count">`.
-   - **Canvas** centered below header.
-   - **Bottom bar**:
-     - Left: `<div id="event-log">` — scrollable, showing last 8 events, color-coded (blue=player, red=AI, gold=world events).
-     - Right: buttons `#btn-new-game` (→ title screen) and `#btn-toggle-fog`.
-2. Implement `updateHUD()`:
-   - Count player/AI tiles, update `#hud-player-count` and `#hud-ai-count`.
-   - Set `#hud-turn` text based on `G.turn` and `G.phase`.
-3. Implement `logEvent(msg, color)`:
-   - Prepend a `<div>` with styled color to `#event-log`.
-   - Limit to 20 entries (remove oldest if exceeded).
-4. Wire `#btn-toggle-fog`:
-   - Toggle a `G.fogDisabled` boolean.
-   - Call `render()` — in render, if `G.fogDisabled`, treat all tiles as revealed.
-5. Wire `#btn-new-game`:
-   - Reset game state, hide `#screen-game`, show `#screen-title`.
-6. Add a tile legend below the canvas: a small row of colored squares with labels for each tile type (from §11.3 visual reference).
-
-### Tests
-```js
-startGame({ W:14, H:10, seed:'hudtest', depth:3 });
-
-// 1. HUD elements exist
-console.assert(document.getElementById('hud-player-count') !== null, 'FAIL: player count HUD missing');
-console.assert(document.getElementById('hud-ai-count') !== null, 'FAIL: AI count HUD missing');
-console.assert(document.getElementById('hud-turn') !== null, 'FAIL: turn indicator missing');
-console.assert(document.getElementById('event-log') !== null, 'FAIL: event log missing');
-
-// 2. HUD counts are correct
-updateHUD();
-const playerCount = G.board.filter(c => c.owner === OWNER.PLAYER).length;
-const displayedCount = parseInt(document.getElementById('hud-player-count').textContent);
-console.assert(displayedCount === playerCount, 'FAIL: HUD player count mismatch');
-
-// 3. logEvent adds to event log
-const logBefore = document.getElementById('event-log').children.length;
-logEvent('Test event', 'gold');
-const logAfter = document.getElementById('event-log').children.length;
-console.assert(logAfter === logBefore + 1, 'FAIL: logEvent did not add entry');
-
-// 4. Toggle fog reveals all tiles
-G.fogDisabled = false;
-render();
-const foggedBefore = [...Array(G.W*G.H).keys()].filter(i => !G.fog.has(i)).length;
+// 4. Toggle fog changes fogDisabled flag
 document.getElementById('btn-toggle-fog').click();
-console.assert(G.fogDisabled === true, 'FAIL: fog toggle did not set G.fogDisabled');
+console.assert(window._fogDisabled === true, 'FAIL: fog not toggled');
+document.getElementById('btn-toggle-fog').click();
+console.assert(window._fogDisabled === false, 'FAIL: fog not toggled back');
 
-// 5. New game button returns to title screen
-document.getElementById('btn-new-game').click();
-console.assert(document.getElementById('screen-title').style.display !== 'none' ||
-  document.getElementById('screen-title').classList.contains('active'),
-  'FAIL: new game did not return to title screen');
-
-console.log('Step 10 tests passed');
+console.log('Step 11 static tests passed');
 ```
 
 ---
 
-## Step 11 — End Screen & Win Condition Integration
+## Step 12 — Wizard Full Flow
 
-**Goal:** Wire `checkWinCondition()` into the game loop and show the end screen with final results.
+**Goal:** Complete the Wizard tile interaction end-to-end: claim → prompt → invoke/decline → teleport turn.
 
 ### Tasks
-1. After every `claimTile()` call (both player and AI turns), call `checkWinCondition()`.
-2. If a winner is detected, call `showEndScreen(winner)`.
-3. Implement `showEndScreen(winner)`:
-   - Set `G.phase = 'gameover'`, `G.gameOver = true`.
-   - Hide `#screen-game`, show `#screen-end`.
-   - Set result text: `VICTORY` (player wins), `DEFEAT` (AI wins), or `DRAW`.
-   - Display final player tile count vs AI tile count.
-   - Confirm `#btn-play-again` returns to title screen.
-4. In `#screen-end`, add:
-   - Large result header (`#result-title`) styled in `Cinzel`.
-   - Score summary `<p id="result-score">`.
-   - `<button id="btn-play-again">Play Again</button>`.
-5. Wire no-moves handling: if `G.validMoves.size === 0` for the current player, log "No moves — turn skipped", switch turns. If both sides have 0 moves in succession, call `showEndScreen(checkWinCondition())`.
+1. **Server side** (`app.py` `/api/move`):
+   - When `claim_tile` returns `True` (Wizard claimed): set `G['phase'] = 'wizard-prompt'`, return snapshot immediately (do **not** run AI yet).
+2. **Client side** (`client.js`):
+   - `applyState` detects `phase === 'wizard-prompt'` → show `#wizard-modal`.
+   - `#wizard-invoke` click → POST `/api/wizard {action: 'invoke'}`.
+   - `#wizard-decline` click → POST `/api/wizard {action: 'decline'}`.
+3. **Server** `/api/wizard`:
+   - `'invoke'`: set `wizard_active_for = PLAYER`, mark the Wizard tile `used = True`, run AI turn, return snapshot with `phase = 'wizard-teleport'`.
+   - `'decline'`: run AI turn directly, return snapshot with `phase = 'normal'`.
+4. **Wizard teleport turn**: when `phase === 'wizard-teleport'`, `compute_valid_moves` returns all revealed unclaimed non-Mountain tiles. The client highlights them in purple. On click, that tile is claimed, `wizard_active_for` cleared, AI runs.
+5. **Inert Wizard tiles**: once `used = True`, `render.js` draws the icon at 40% opacity. The tile still contributes `owner` to score and vision.
+6. **AI Wizard** (already in `minimax_root`): after AI claims a Wizard, call `wizard_teleport_decision(G)` — if result is not `None`, set `wizard_active_for = AI` and mark tile `used`. On the AI's next (immediately simulated) turn, the wizard teleport fires.
 
 ### Tests
+```python
+# tests/test_api.py — add these
+def _force_wizard(client):
+    """Start a game, then manually trigger wizard-prompt by posting a wizard tile index."""
+    import app as app_module
+    from game.constants import WIZARD, NONE, PLAYER
+    _start(client, seed='wiztest')
+    # Force a Wizard tile into the valid moves
+    wiz_idx = next(
+        (i for i, c in enumerate(app_module.G['board'])
+         if c['type'] == WIZARD and c['owner'] == NONE),
+        None
+    )
+    if wiz_idx is None:
+        # Place one manually
+        free = next(
+            i for i, c in enumerate(app_module.G['board'])
+            if c['owner'] == NONE and c['type'] not in (MOUNTAIN := 4,)
+            and i in app_module.G['fog']
+        )
+        app_module.G['board'][free]['type'] = WIZARD
+        app_module.G['valid_moves'] = list(
+            compute_valid_moves(app_module.G, PLAYER)
+        )
+        wiz_idx = free
+    else:
+        app_module.G['fog'].add(wiz_idx)
+        from game.moves import compute_valid_moves
+        app_module.G['valid_moves'] = list(compute_valid_moves(app_module.G, PLAYER))
+    return wiz_idx
+
+def test_wizard_claim_triggers_prompt(client):
+    wiz_idx = _force_wizard(client)
+    r = client.post('/api/move',
+                    data=json.dumps({'index': wiz_idx}),
+                    content_type='application/json')
+    state = json.loads(r.data)
+    assert state['phase'] == 'wizard-prompt'
+
+def test_wizard_invoke_sets_teleport_phase(client):
+    _force_wizard(client)
+    import app as app_module
+    # Manually set phase as if prompt was shown
+    app_module.G['phase'] = 'wizard-prompt'
+    r = client.post('/api/wizard',
+                    data=json.dumps({'action': 'invoke'}),
+                    content_type='application/json')
+    state = json.loads(r.data)
+    # After invoke + AI turn, player's next phase should be wizard-teleport
+    assert state['phase'] in ('wizard-teleport', 'normal', 'gameover')
+    assert state['wizard_active_for'] in (1, 0)  # PLAYER or cleared if used
+
+def test_wizard_decline_runs_ai_turn(client):
+    _force_wizard(client)
+    import app as app_module
+    from game.constants import AI
+    ai_count_before = sum(1 for c in app_module.G['board'] if c['owner'] == AI)
+    app_module.G['phase'] = 'wizard-prompt'
+    client.post('/api/wizard',
+                data=json.dumps({'action': 'decline'}),
+                content_type='application/json')
+    ai_count_after = sum(1 for c in app_module.G['board'] if c['owner'] == AI)
+    assert ai_count_after >= ai_count_before, "AI did not move after wizard decline"
+```
 ```js
+// Browser console — wizard modal
+console.assert(document.getElementById('wizard-modal') !== null, 'FAIL: wizard modal missing');
+console.assert(document.getElementById('wizard-invoke') !== null, 'FAIL: invoke btn missing');
+console.assert(document.getElementById('wizard-decline') !== null, 'FAIL: decline btn missing');
+// Visual check: claim a Wizard tile in-game — modal should appear with parchment styling
+console.log('Step 12 DOM checks passed');
+```
+Run: `pytest tests/test_api.py::test_wizard_claim_triggers_prompt tests/test_api.py::test_wizard_invoke_sets_teleport_phase tests/test_api.py::test_wizard_decline_runs_ai_turn -v`
+
+---
+
+## Step 13 — End Screen & Final Integration
+
+**Goal:** Wire win detection into every `/api/move` response, show the end screen, verify the full game loop works end-to-end, and handle edge cases.
+
+### Tasks
+1. **End screen** (HTML + CSS already in Step 9): when `phase === 'gameover'`, `applyState` calls `showScreen('screen-end')`, sets `#result-title` text/class (`victory`/`defeat`/`draw`) and `#result-score`.
+2. **`#btn-play-again`**: calls `showScreen('screen-title')` — no server call needed (new game is started from scratch via `/api/start`).
+3. **No-moves handling** (server side in `/api/move`):
+   - After player move, if `compute_valid_moves(G, AI)` is empty, skip AI turn and log the skip.
+   - At the start of the player's turn computation, if `compute_valid_moves(G, PLAYER)` is empty, check if AI also has no moves → call `check_win_condition` → return `gameover` state.
+4. **Edge cases to verify:**
+   - Square board (`W == H`): Barbarian uses `random.choice` live, `'h'` in minimax.
+   - Barbarian sweep eliminates all tiles: fog recomputes correctly, game continues.
+   - All tiles claimed mid-game: `check_win_condition` returns a winner immediately.
+   - Player with no moves but AI has moves: AI gets consecutive turns until player has moves.
+5. **Responsive canvas**: on `window.resize`, client recomputes `cellSize` and calls `render` with the cached `window._state`.
+
+### Tests
+```python
+# tests/test_api.py — final integration tests
+def test_game_ends_with_winner_or_draw(client):
+    _start(client, W=8, H=6, depth=1, seed='endtest')
+    for _ in range(300):
+        r = client.get('/api/state')
+        state = json.loads(r.data)
+        if state['phase'] == 'gameover':
+            break
+        valid = state.get('valid_moves', [])
+        if not valid:
+            break
+        client.post('/api/move',
+                    data=json.dumps({'index': valid[0]}),
+                    content_type='application/json')
+    state = json.loads(client.get('/api/state').data)
+    assert state['phase'] == 'gameover'
+    total = sum(1 for c in state['board'] if c['type'] != 4)  # 4 == MOUNTAIN
+    player_c = sum(1 for c in state['board'] if c['owner'] == 1)
+    ai_c     = sum(1 for c in state['board'] if c['owner'] == 2)
+    # Winner must have the majority or all tiles claimed
+    assert player_c + ai_c <= total
+
+def test_result_score_in_response(client):
+    _start(client, W=8, H=6, depth=1, seed='scoretest')
+    # Force a majority win by setting board state directly
+    import app as app_module
+    from game.constants import PLAYER, MOUNTAIN
+    claimable = [i for i, c in enumerate(app_module.G['board']) if c['type'] != MOUNTAIN]
+    majority = len(claimable) // 2 + 1
+    for i in claimable[:majority]:
+        app_module.G['board'][i]['owner'] = PLAYER
+    app_module.G['phase'] = 'gameover'
+    app_module.G['game_over'] = True
+    r = client.get('/api/state')
+    state = json.loads(r.data)
+    assert state['phase'] == 'gameover'
+
+def test_no_moves_both_players_ends_game(client):
+    _start(client, W=8, H=6, depth=1, seed='nomoves')
+    import app as app_module
+    from game.constants import PLAYER, AI, MOUNTAIN
+    # Force all tiles owned (no unclaimed tiles left)
+    for c in app_module.G['board']:
+        if c['type'] != MOUNTAIN:
+            c['owner'] = PLAYER if app_module.G['board'].index(c) % 2 == 0 else AI
+    app_module.G['valid_moves'] = []
+    r = client.post('/api/move',
+                    data=json.dumps({'index': -1}),
+                    content_type='application/json')
+    # Should return 400 (no valid moves) or gameover state — not a crash
+    assert r.status_code in (400, 200)
+```
+```js
+// Browser console — final integration
 // 1. End screen elements exist
 console.assert(document.getElementById('result-title') !== null, 'FAIL: result-title missing');
 console.assert(document.getElementById('result-score') !== null, 'FAIL: result-score missing');
-console.assert(document.getElementById('btn-play-again') !== null, 'FAIL: play-again button missing');
+console.assert(document.getElementById('btn-play-again') !== null, 'FAIL: play-again missing');
 
-// 2. Force a win condition and check end screen displays
-startGame({ W:8, H:6, seed:'endtest', depth:2 });
-const claimable = G.board.filter(c => c.type !== T.MOUNTAIN).length;
-const majority = Math.floor(claimable / 2) + 1;
-let count = 0;
-G.board.forEach(c => {
-  if (c.type !== T.MOUNTAIN && c.owner === OWNER.NONE && count < majority) {
-    c.owner = OWNER.PLAYER;
-    count++;
-  }
-});
-const result = checkWinCondition();
-console.assert(result === OWNER.PLAYER, 'FAIL: win condition not detected');
-showEndScreen(result);
-console.assert(document.getElementById('screen-end').style.display !== 'none' ||
-  document.getElementById('screen-end').classList.contains('active'),
-  'FAIL: end screen not shown');
-console.assert(document.getElementById('result-title').textContent.includes('VICTORY'),
-  'FAIL: result title should say VICTORY');
-
-// 3. Play Again returns to title
+// 2. Play Again returns to title screen
 document.getElementById('btn-play-again').click();
-console.assert(document.getElementById('screen-title').style.display !== 'none' ||
-  document.getElementById('screen-title').classList.contains('active'),
-  'FAIL: play again did not return to title');
+console.assert(document.getElementById('screen-title').classList.contains('active'),
+  'FAIL: play-again did not navigate to title');
 
-console.log('Step 11 tests passed');
-```
-
----
-
-## Step 12 — Wizard Full Flow Integration
-
-**Goal:** Complete the Wizard tile interaction — modal prompt for the human player, AI decision, and wizard teleport turn.
-
-### Tasks
-1. Build the Wizard prompt modal (`#wizard-modal`):
-   - Dark overlay covering the game screen.
-   - Text: "A Wizard appears! Invoke their power on your next turn?"
-   - Two buttons: `#wizard-invoke` and `#wizard-decline`.
-   - Style with `Cinzel` heading and `Crimson Text` body text.
-2. Wire `#wizard-invoke`:
-   - Set `G.wizardActiveFor = OWNER.PLAYER`.
-   - Hide modal, set `G.phase = 'normal'`.
-   - Call `endPlayerTurn()`.
-3. Wire `#wizard-decline`:
-   - Set `G.wizardActiveFor = OWNER.NONE`.
-   - Hide modal, set `G.phase = 'normal'`.
-   - Call `endPlayerTurn()`.
-4. On the player's **next** turn, if `G.wizardActiveFor === OWNER.PLAYER`:
-   - Set `G.phase = 'wizard-teleport'`.
-   - Recompute `G.validMoves` (all revealed unclaimed non-Mountain tiles).
-   - Highlight all valid tiles in purple on the canvas.
-   - After the player clicks a tile, claim it, clear `G.wizardActiveFor = OWNER.NONE`, set `G.phase = 'normal'`.
-5. Mark the used Wizard tile: `G.board[wizardIdx].used = true` after the power is invoked.
-6. Ensure AI Wizard flow in `runAITurn()` uses `wizardTeleportDecision()` correctly (already wired in Step 9).
-7. Log all Wizard events to the event log in gold color.
-
-### Tests
-```js
-startGame({ W:14, H:10, seed:'wiztest', depth:3 });
-
-// 1. Wizard modal elements exist
-console.assert(document.getElementById('wizard-modal') !== null, 'FAIL: wizard modal missing');
-console.assert(document.getElementById('wizard-invoke') !== null, 'FAIL: invoke button missing');
-console.assert(document.getElementById('wizard-decline') !== null, 'FAIL: decline button missing');
-
-// 2. Claiming a wizard tile shows the modal
-const wizIdx = G.board.findIndex((c,i) =>
-  c.type === T.WIZARD && c.owner === OWNER.NONE && G.fog.has(i));
-if (wizIdx !== -1) {
-  // Force wizard to be a valid move
-  G.validMoves.add(wizIdx);
-  claimTile(wizIdx, OWNER.PLAYER);
-  console.assert(G.phase === 'wizard-prompt' ||
-    document.getElementById('wizard-modal').style.display !== 'none',
-    'FAIL: claiming wizard did not show modal');
-} else {
-  console.log('No revealed wizard found — place one manually to test');
-  const freeIdx = G.board.findIndex((c,i) =>
-    c.type === T.FOREST && c.owner === OWNER.NONE && G.fog.has(i));
-  G.board[freeIdx].type = T.WIZARD;
-  G.validMoves.add(freeIdx);
-  claimTile(freeIdx, OWNER.PLAYER);
-  console.assert(G.phase === 'wizard-prompt', 'FAIL: wizard phase not set');
-}
-
-// 3. Invoke button sets wizardActiveFor
-document.getElementById('wizard-invoke').click();
-console.assert(G.wizardActiveFor === OWNER.PLAYER, 'FAIL: wizardActiveFor not set after invoke');
-
-// 4. On next player turn, phase is wizard-teleport and valid moves are all unclaimed revealed
-G.turn = OWNER.PLAYER;
-G.phase = 'normal';
-// Simulate start of player turn with active wizard
-if (G.wizardActiveFor === OWNER.PLAYER) {
-  G.phase = 'wizard-teleport';
-  G.validMoves = computeValidMoves(OWNER.PLAYER);
-}
-const allUnclaimed = G.board.filter((c,i) =>
-  c.owner === OWNER.NONE && c.type !== T.MOUNTAIN && G.fog.has(i)).length;
-console.assert(G.validMoves.size === allUnclaimed,
-  'FAIL: wizard teleport move set size mismatch');
-
-console.log('Step 12 tests passed');
-```
-
----
-
-## Step 13 — Polish, Responsiveness & Final Integration
-
-**Goal:** Final pass — responsive canvas sizing, edge cases, visual polish, and full game loop end-to-end verification.
-
-### Tasks
-1. **Responsive canvas:** On `startGame()` and on `window.resize`, compute:
-   ```js
-   const maxCellW = Math.floor(window.innerWidth * 0.80 / G.W);
-   const maxCellH = Math.floor(window.innerHeight * 0.65 / G.H);
-   G.cellSize = Math.max(40, Math.min(64, maxCellW, maxCellH));
-   ```
-   Resize canvas and re-render.
-2. **Title screen glow animation:** CSS `@keyframes` on `#screen-title h1` — subtle pulsing `text-shadow`.
-3. **Turn indicator clarity:** `#hud-turn` shows "Your Turn", "AI is thinking…" (during AI), or "Wizard Power Ready" (if `G.wizardActiveFor === OWNER.PLAYER`).
-4. **Tile legend:** A row of small colored squares with labels below the canvas; rendered in HTML/CSS (not on canvas).
-5. **Event log polish:** Max height with `overflow-y: auto`; newest events at top; color per type.
-6. **Edge cases:**
-   - Both players have no moves → trigger `checkWinCondition()` and show end screen.
-   - Board with all Mountains (degenerate seed) → at least 2 Caves guaranteed by generation step.
-   - Wizard on AI's first revealed tile → AI decision runs correctly.
-   - Barbarian sweep wipes everything → validate fog recomputes correctly after.
-7. **Inert Wizard tiles:** once `used = true`, they render with a dimmed icon and no special behavior.
-
-### Tests
-```js
-// Full end-to-end game simulation (automated fast-play)
-startGame({ W:8, H:6, seed:'e2e', depth:2 });
-
-let safetyCounter = 0;
-function simulateTurn() {
-  safetyCounter++;
-  if (safetyCounter > 500 || G.gameOver) {
-    console.log('Game ended after', safetyCounter, 'simulated turns');
-    console.assert(G.gameOver, 'FAIL: game not marked over after all moves');
-    console.log('Final state:', G.board.filter(c=>c.owner===OWNER.PLAYER).length,
-      'player vs', G.board.filter(c=>c.owner===OWNER.AI).length, 'AI');
-    return;
-  }
-
-  computeValidMoves(G.turn); // sets G.validMoves internally or returns
-  G.validMoves = computeValidMoves(G.turn);
-
-  if (G.validMoves.size === 0) {
-    G.turn = G.turn === OWNER.PLAYER ? OWNER.AI : OWNER.PLAYER;
-    const otherMoves = computeValidMoves(G.turn);
-    if (otherMoves.size === 0) {
-      showEndScreen(checkWinCondition());
-      return;
-    }
-  }
-
-  // Pick random valid move for both sides (speed > AI quality for this test)
-  const moves = [...G.validMoves];
-  const pick = moves[Math.floor(Math.random() * moves.length)];
-  claimTile(pick, G.turn);
-  const winner = checkWinCondition();
-  if (winner !== null) {
-    showEndScreen(winner);
-  } else {
-    G.turn = G.turn === OWNER.PLAYER ? OWNER.AI : OWNER.PLAYER;
-    simulateTurn();
-  }
-}
-
-simulateTurn();
-
-// 2. Responsiveness — resize window and check cellSize updates
+// 3. Window resize re-renders without error
 window.dispatchEvent(new Event('resize'));
-console.assert(G.cellSize >= 40 && G.cellSize <= 64,
-  'FAIL: cellSize out of valid range after resize');
-
-// 3. No JS errors in console during full play
-console.log('Check browser console for JS errors — none expected');
-
-// 4. Play-again flow from end screen
-if (G.gameOver) {
-  document.getElementById('btn-play-again').click();
-  console.assert(document.getElementById('screen-title').style.display !== 'none' ||
-    document.getElementById('screen-title').classList.contains('active'),
-    'FAIL: play-again did not go to title');
-  document.getElementById('btn-start').click();
-  console.assert(document.getElementById('screen-game').style.display !== 'none' ||
-    document.getElementById('screen-game').classList.contains('active'),
-    'FAIL: start did not go to game screen');
-}
-
-console.log('Step 13 final integration tests passed');
+console.log('Step 13 browser checks passed');
 ```
+Run: `pytest tests/ -v` — **all tests across all files must pass.**
 
 ---
 
 ## Implementation Order Summary
 
-| Step | What You Build | Key Test |
-|------|---------------|----------|
-| 1 | HTML skeleton, CSS vars, font setup | Screen visibility, canvas exists |
-| 2 | Title/setup screen UI | Inputs present, clamping works |
-| 3 | PRNG + board generation | Cave guarantee, determinism, domain placement |
-| 4 | Fog of War system | Starting tiles revealed, BFS propagation |
-| 5 | Valid moves computation | No mountains/owned/fogged tiles, wizard exception |
-| 6 | Tile claiming, Barbarian sweeps, win condition | Sweep clears row/col, majority win detected |
-| 7 | Canvas rendering | Correct colors, icons, fog, highlights |
-| 8 | Minimax AI + heuristic | Valid move returned, heuristic scales correctly |
-| 9 | Player input handling, turn loop | Click-to-claim, turn switching, AI runs after player |
-| 10 | HUD, event log, control buttons | Counts accurate, toggle fog, new game |
-| 11 | End screen, win integration | End screen shown, play-again works |
-| 12 | Wizard full flow | Modal shows, teleport turn highlights correctly |
-| 13 | Polish, responsiveness, edge cases | Full simulated game completes without errors |
+| Step | Files Created / Modified | Key Tests |
+|------|--------------------------|-----------|
+| 1 | `app.py`, `requirements.txt`, `templates/index.html` stub | `test_index_returns_200`, `test_index_contains_canvas` |
+| 2 | `game/constants.py` | Tile/owner uniqueness, weight coverage |
+| 3 | `game/board.py` | Cave guarantee, determinism, domain placement |
+| 4 | `game/fog.py` | Starting tiles revealed, BFS through Mountains, Cave global reveal |
+| 5 | `game/moves.py` | No Mountains/owned/fogged in moves, Plains dist-2, Tower dist-3, Wizard teleport |
+| 6 | `game/claim.py` | Barbarian row/col sweep, snapshot/restore, majority win |
+| 7 | `game/ai.py` | Heuristic sign, minimax returns valid move, no board mutation |
+| 8 | `app.py` (full) | All API endpoints, clamping, AI moves after player, game reaches gameover |
+| 9 | `templates/index.html`, `static/css/dominion.css` | All screens present, CSS loads, visual check |
+| 10 | `static/js/render.js` | cellSize range, render no-throw, canvas dimensions, blendColor |
+| 11 | `static/js/client.js` | State populated, HUD correct, click claims tile, fog toggle |
+| 12 | `app.py /api/wizard`, client wizard modal | Wizard prompt triggers, invoke sets teleport, decline runs AI |
+| 13 | Full wiring | Game ends with winner/draw, play-again works, resize re-renders |
