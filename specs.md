@@ -5,19 +5,20 @@
 
 ## 1. Overview
 
-**Dominion** is a web-based, single-file, two-player turn-based territory strategy game. One player is human; the other is a computer opponent driven by a minimax algorithm with alpha-beta pruning. The goal is to claim more tiles than your opponent by the time the board is fully contested.
+**Dominion** is a web-based, multi-file, two-player turn-based territory strategy game. One player is human; the other is a computer opponent driven by a minimax algorithm with alpha-beta pruning. The goal is to claim more tiles than your opponent by the time the board is fully contested.
 
-**Deliverable:** A single self-contained `.html` file with all game logic, AI, rendering, and styles inline. No build step, no external dependencies beyond Google Fonts and a CDN-hosted font if desired.
+**Deliverable:** A multi-file Python web application. All game logic and AI run server-side in Python (Flask). The browser frontend handles rendering (HTML5 Canvas) and sends player actions to the server via a JSON API. No build step, no npm packages, no external JS dependencies beyond Google Fonts.
 
 ---
 
 ## 2. Technology Stack
 
-- **Language:** Vanilla JavaScript (ES2020+)
-- **Rendering:** HTML5 Canvas (2D context)
-- **Styling:** Inline CSS with CSS custom properties
-- **No frameworks, no npm packages, no backend**
-- A seeded pseudo-random number generator (PRNG) must be implemented in JS (e.g. mulberry32) — do not use `Math.random()` for anything that affects board generation or Barbarian direction on square boards
+- **Language:** Python 3.10+ (all game logic and AI)
+- **Web Framework:** Flask (serves the page, exposes a JSON API for game actions)
+- **Rendering:** HTML5 Canvas (2D context) in the browser via a thin JavaScript client (`static/js/client.js`, `static/js/render.js`)
+- **Styling:** CSS in a separate file (`static/css/dominion.css`) — use CSS custom properties, no inline styles
+- **No frontend frameworks, no npm, no bundler**
+- A seeded PRNG must be used for board generation and Barbarian direction on square boards. Use Python's built-in `random` module: call `random.seed(seed_string)` so the same string always produces the same board
 
 ---
 
@@ -27,7 +28,7 @@
 The player configures the game before starting via a title/setup screen with these fields:
 - **Board Width** — integer, range 8–24, default 14
 - **Board Height** — integer, range 6–18, default 10
-- **Seed** — string; if blank, use a random seed (e.g. `Date.now()` stringified). The seed must produce an identical board every time the same string is entered.
+- **Seed** — string; if blank, use a random seed (e.g. `str(time.time_ns())` on the server). The seed must produce an identical board every time the same string is entered.
 - **AI Difficulty** — dropdown: Scout (depth 2), Knight (depth 3, default), Warlord (depth 4)
 
 ### 3.2 Grid Structure
@@ -36,7 +37,7 @@ The board is a flat `W × H` grid of cells. Each cell has:
 - `owner` — `NONE`, `PLAYER`, or `AI`
 - `used` — boolean flag (relevant only for Wizard tiles)
 
-Cell indexing: `index = y * W + x`. Helper functions `idx(x,y)` and `xy(i)` should be provided.
+Cell indexing: `index = y * W + x`. Helper functions `idx(x, y)` and `xy(i)` should be provided.
 
 ### 3.3 Board Generation
 Use the seeded PRNG to assign tile types. Suggested probability weights (adjust for balance):
@@ -139,7 +140,7 @@ There are 8 tile types. Each has distinct expansion behavior (what moves it adds
 - **Sweep direction:**
   - If `W > H`: sweeps horizontally (across the Barbarian's entire row)
   - If `H > W`: sweeps vertically (down the Barbarian's entire column)
-  - If `W == H`: choose randomly using the seeded PRNG
+  - If `W == H`: choose randomly using `random.choice(['h', 'v'])` with the seeded PRNG
 - **Effect:** Every non-Mountain tile in the Barbarian's row (horizontal) or column (vertical) has its `owner` reset to `NONE`. The Barbarian tile itself also has `owner = NONE` after the sweep. It does **not** become impassable — it can be reclaimed by either player afterward.
 - **Multiple Barbarians:** If revealing one tile causes multiple Barbarians to be newly revealed, process each one in index order.
 
@@ -190,26 +191,26 @@ If the active player has no valid moves, their turn is skipped and the turn pass
 The AI uses depth-limited minimax search with alpha-beta pruning. The AI is the maximizing player; the human is the minimizing player. Search depth is set by the difficulty selection (2, 3, or 4).
 
 ### 8.2 Move Simulation
-During minimax, board state must be snapshottable and restorable cheaply. Recommended approach: copy `board` array (array of `{type, owner, used}` objects) before each simulated move, and restore after. Fog must also be recomputed after each simulated move.
+During minimax, board state must be snapshottable and restorable cheaply. Recommended approach: copy the `board` list (list of `{'type': int, 'owner': int, 'used': bool}` dicts) before each simulated move using a list comprehension, and restore after. Fog must also be recomputed after each simulated move.
 
-Barbarian sweeps must be **simulated** during minimax (using a deterministic direction rule — no randomness during search; use the `W >= H ? 'h' : 'v'` rule for square boards during simulation).
+Barbarian sweeps must be **simulated** during minimax (using a deterministic direction rule — no randomness during search; use `'h' if W >= H else 'v'` for square boards during simulation).
 
 ### 8.3 Heuristic Evaluation Function
 When the search reaches maximum depth (or a terminal state), evaluate the board using this weighted scoring function:
 
-```
+```python
 score = 0
-score += (aiTileCount - playerTileCount) * 10       // tile differential — primary objective
-score += (aiFrontier - playerFrontier) * 3          // mobility advantage
-score += aiCaveControl ? +8 : 0                     // bonus for owning any Cave
-score += playerCaveControl ? -8 : 0                 // penalty if player owns Cave
-score += aiHasActiveWizard ? +5 : 0                 // strategic reserve
-score += playerHasActiveWizard ? -5 : 0
-score += barbExposurePenalty(AI) * -2               // penalty for tiles in a Barbarian's sweep path
-score += barbExposurePenalty(PLAYER) * +2
+score += (ai_tile_count - player_tile_count) * 10   # tile differential — primary objective
+score += (ai_frontier - player_frontier) * 3        # mobility advantage
+score += 8 if ai_cave_control else 0                # bonus for owning any Cave
+score -= 8 if player_cave_control else 0            # penalty if player owns Cave
+score += 5 if ai_has_active_wizard else 0           # strategic reserve
+score -= 5 if player_has_active_wizard else 0
+score -= barb_exposure_penalty(AI) * 2              # penalty for tiles in a Barbarian's sweep path
+score += barb_exposure_penalty(PLAYER) * 2
 ```
 
-**Frontier** = number of valid moves available (computed with `computeValidMoves`).
+**Frontier** = number of valid moves available (computed with `compute_valid_moves`).
 
 **Barbarian exposure penalty** = count of owned tiles that share a row (if W >= H) or column (if H > W) with an unrevealed (fogged) Barbarian tile. This represents risk.
 
@@ -332,64 +333,106 @@ The canvas should scale so the full board is visible on common screen sizes. If 
 
 ## 12. Implementation Notes for the Coding Agent
 
-### 12.1 State Management
-Maintain a single global game state object `G` containing:
-```javascript
+### 12.1 File Structure
+```
+dominion/
+  app.py                   ← Flask app: routes, session management, API endpoints
+  game/
+    __init__.py
+    constants.py           ← Tile types, owner constants, tile data tables
+    board.py               ← generate_board(), idx(), xy() helpers
+    fog.py                 ← compute_fog(), bfs_reveal()
+    moves.py               ← compute_valid_moves()
+    claim.py               ← claim_tile(), trigger_barbarians(), check_win_condition()
+    ai.py                  ← heuristic(), minimax_alpha_beta(), minimax_root(), wizard_teleport_decision()
+  static/
+    css/
+      dominion.css         ← All styles (CSS custom properties, no inline styles)
+    js/
+      render.js            ← Canvas drawing functions (tiles, fog, highlights)
+      client.js            ← UI logic: API calls, event handling, turn management
+  templates/
+    index.html             ← Single Jinja2 template; loads CSS and JS
+```
+
+### 12.2 State Management
+Game state lives server-side in a Python dict stored in the Flask session (or a module-level variable for single-player use). The client holds no authoritative state — it only holds the last snapshot received from the server for rendering.
+
+Server state structure:
+```python
 G = {
-  W, H,               // board dimensions
-  board,              // flat array of cell objects
-  fog,                // Set of revealed tile indices (shared)
-  turn,               // PLAYER or AI
-  phase,              // 'normal' | 'wizard-prompt' | 'wizard-teleport' | 'ai-thinking' | 'gameover'
-  wizardActiveFor,    // NONE | PLAYER | AI — who has an active wizard power pending
-  validMoves,         // Set of valid move indices for current player
-  gameOver,           // boolean
-  rng,                // seeded PRNG function
+    'W': int, 'H': int,          # board dimensions
+    'board': list[dict],         # flat list of {'type': int, 'owner': int, 'used': bool}
+    'fog': list[int],            # revealed tile indices (serialised as list for JSON)
+    'turn': int,                 # PLAYER or AI constant
+    'phase': str,                # 'normal' | 'wizard-prompt' | 'wizard-teleport' | 'ai-thinking' | 'gameover'
+    'wizard_active_for': int,    # NONE | PLAYER | AI
+    'valid_moves': list[int],    # valid move indices for current player
+    'game_over': bool,
+    'depth': int,                # minimax search depth
+    'seed': str,                 # stored for display/replay
 }
 ```
 
-### 12.2 Key Functions to Implement
-- `generateBoard(rng, W, H)` — populate `G.board` using PRNG
-- `computeFog()` — recompute the shared fog set from all owned tiles
-- `computeValidMoves(owner)` — return Set of valid move indices
-- `claimTile(index, owner)` — set owner, recompute fog, check Barbarian reveals
-- `triggerBarbarians(index)` — execute sweep, reset owners, recompute fog
-- `checkWinCondition()` — return winner or null
-- `minimaxRoot(depth)` — return best move index for AI
-- `minimaxAlphaBeta(depth, alpha, beta, isMaximizing)` — recursive search
-- `heuristic()` — return numeric board evaluation
-- `render()` — draw entire board to canvas
-- `handlePlayerClick(x, y)` — process human input
+### 12.3 API Endpoints
+Flask exposes a simple JSON API used by the browser client:
 
-### 12.3 Performance Considerations
-- Minimax at depth 4 on a 16×12 board can be slow if not optimized. Implement move ordering (sort by strategic value before searching) to maximize pruning effectiveness.
-- Snapshot/restore of board state should avoid deep cloning complex objects — a flat array of `{type, owner, used}` tuples copies efficiently.
-- Consider a 400–600ms artificial delay before the AI move to give the UI time to render the "AI is thinking…" state before the JS thread blocks.
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| POST | `/api/start` | `{W, H, seed, depth}` | full game state snapshot |
+| POST | `/api/move` | `{index}` | updated state snapshot after player move + AI response |
+| GET  | `/api/state` | — | current game state snapshot |
 
-### 12.4 Barbarian Timing Detail
-After every `claimTile` call, recompute fog and then check: for every Barbarian tile that is now revealed (in `fog`) but was not previously revealed, trigger it. Track the pre-claim fog snapshot to detect newly revealed tiles.
+The `/api/move` endpoint:
+1. Validates the move index is in `valid_moves`.
+2. Calls `claim_tile(index, PLAYER)`.
+3. Checks win condition.
+4. If game continues, runs `minimax_root(depth)` for the AI, calls `claim_tile(ai_index, AI)`.
+5. Checks win condition again.
+6. Returns the updated full state snapshot.
 
-### 12.5 Seeded PRNG
-Implement mulberry32 or a similar seedable PRNG. Hash the seed string to an integer using FNV-1a or similar before passing to the PRNG constructor.
+Wizard prompt is handled by a separate endpoint `/api/wizard` accepting `{action: 'invoke' | 'decline'}`.
 
-```javascript
-function hashStr(s) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = (h * 0x01000193) >>> 0;
-  }
-  return h;
-}
+### 12.4 Key Python Functions to Implement
+- `generate_board(seed: str, W: int, H: int) -> list[dict]` — build board using `random` seeded with seed string
+- `compute_fog(G: dict) -> set[int]` — recompute shared fog from all owned tiles; returns new fog set
+- `compute_valid_moves(G: dict, owner: int) -> set[int]` — return set of valid move indices
+- `claim_tile(G: dict, index: int, owner: int, minimax_mode: bool = False) -> bool` — set owner, recompute fog, trigger Barbarians; returns True if tile was a Wizard
+- `trigger_barbarians(G: dict, index: int, minimax_mode: bool = False)` — execute row/column sweep
+- `check_win_condition(G: dict) -> int | str | None` — return PLAYER, AI, `'DRAW'`, or None
+- `minimax_root(G: dict, depth: int) -> int` — return best move index for AI
+- `minimax_alpha_beta(G: dict, depth: int, alpha: float, beta: float, is_maximizing: bool) -> float` — recursive search
+- `heuristic(G: dict) -> float` — return numeric board evaluation
+- `snapshot_board(G: dict) -> list[dict]` — return a deep copy of the board list
+- `restore_board(G: dict, snap: list[dict])` — restore board from snapshot and recompute fog
 
-function mulberry32(seed) {
-  return function() {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
+### 12.5 Client-Side JavaScript
+The browser client (`client.js`) is responsible only for:
+- Calling the Flask API on player actions (start game, make move, wizard choice)
+- Receiving the state snapshot and passing it to `render.js`
+- Managing the wizard prompt modal and UI phase transitions
+
+`render.js` receives the state snapshot and draws the board to the HTML5 Canvas (tile colors, icons, fog, valid move highlights). All game logic decisions happen server-side.
+
+### 12.6 Performance Considerations
+- Minimax at depth 4 on a 16×12 board can be slow. Implement move ordering (sort by strategic value descending before searching) to maximise pruning effectiveness.
+- Snapshot/restore: use `[cell.copy() for cell in G['board']]` — shallow copy of each dict is sufficient since cell dicts contain only primitives.
+- The `/api/move` endpoint blocks until the AI move is computed. For depth 3–4 this is acceptable (typically <2s). The client should show "AI is thinking…" immediately on receiving the player's click, before awaiting the API response.
+
+### 12.7 Barbarian Timing Detail
+After every `claim_tile` call, recompute fog and then check: for every Barbarian tile that is now revealed (in `fog`) but was not previously revealed, trigger it. Pass the pre-claim fog snapshot to detect newly revealed tiles.
+
+### 12.8 Seeded PRNG
+Use Python's built-in `random` module. Seed it with the user-supplied string at the start of board generation. All random calls for board generation and square-board Barbarian direction draw from this seeded state.
+
+```python
+import random
+
+def seed_rng(seed_string: str):
+    random.seed(seed_string)
+
+# Then use random.random(), random.randint(), random.choice() etc.
+# throughout board generation and Barbarian direction resolution.
 ```
 
 ---
