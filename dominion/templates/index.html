@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOMINION</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/dominion.css">
+</head>
+<body>
+
+  <!-- Title / Setup Screen -->
+  <div id="screen-title" class="screen active">
+    <h1 id="game-title">DOMINION</h1>
+    <p class="tagline">A battle for ancient lands</p>
+
+    <div class="setup-card">
+      <div class="setup-row">
+        <label for="input-width">Width <span class="hint">(8–24)</span></label>
+        <input id="input-width" type="number" min="8" max="24" value="14">
+      </div>
+      <div class="setup-row">
+        <label for="input-height">Height <span class="hint">(6–18)</span></label>
+        <input id="input-height" type="number" min="6" max="18" value="10">
+      </div>
+      <div class="setup-row">
+        <label for="input-seed">Seed <span class="hint">(blank = random)</span></label>
+        <input id="input-seed" type="text" placeholder="Enter seed…">
+      </div>
+      <div class="setup-row">
+        <label for="input-depth">Difficulty</label>
+        <select id="input-depth">
+          <option value="2">Scout (depth 2)</option>
+          <option value="3" selected>Knight (depth 3)</option>
+          <option value="4">Warlord (depth 4)</option>
+        </select>
+      </div>
+      <button id="btn-start" class="btn-primary">Begin Conquest</button>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="screen-game" class="screen">
+    <div id="game-header">
+      <div class="hud hud-player">
+        <span class="hud-label">Player</span>
+        <span id="hud-player-count" class="hud-count">0</span>
+      </div>
+      <div id="hud-turn" class="hud-turn">Your turn</div>
+      <div class="hud hud-ai">
+        <span id="hud-ai-count" class="hud-count">0</span>
+        <span class="hud-label">AI</span>
+      </div>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="board-canvas"></canvas>
+    </div>
+
+    <div id="tile-legend"></div>
+
+    <div id="game-footer">
+      <div id="event-log"></div>
+      <div class="footer-buttons">
+        <button id="btn-toggle-fog" class="btn-secondary">Toggle Fog</button>
+        <button id="btn-new-game" class="btn-secondary">New Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Screen -->
+  <div id="screen-end" class="screen">
+    <h2 id="result-title">Game Over</h2>
+    <p id="result-score"></p>
+    <button id="btn-play-again" class="btn-primary">Play Again</button>
+  </div>
+
+  <!-- Wizard Modal -->
+  <div id="wizard-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>✦ The Wizard Awakens</h2>
+      <p>The wizard offers to teleport your forces to any revealed territory.</p>
+      <div class="modal-buttons">
+        <button id="wizard-invoke" class="btn-primary">Invoke the Wizard</button>
+        <button id="wizard-decline" class="btn-secondary">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/render.js"></script>
+  <script src="/static/js/client.js"></script>
+</body>
+</html>

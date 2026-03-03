@@ -1,0 +1,403 @@
+/* DOMINION — Dark Medieval CSS */
+
+:root {
+  --bg: #0d0e0c;
+  --surface: #161a14;
+  --surface2: #1e241c;
+  --border: #2e3a2a;
+  --player-color: #4a9eff;
+  --ai-color: #e05555;
+  --accent: #c9a227;
+  --accent-dark: #8b6f1a;
+  --text: #d4c9a8;
+  --text-muted: #7a7060;
+  --fog: #0a0c0a;
+  --valid-move: rgba(200, 220, 60, 0.35);
+  --valid-border: rgba(200, 220, 60, 0.8);
+  --wizard-move: rgba(180, 80, 240, 0.35);
+  --wizard-border: rgba(180, 80, 240, 0.8);
+  --danger: #e05555;
+  --success: #4a9e4a;
+  --modal-bg: rgba(0, 0, 0, 0.75);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 16px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ========== SCREENS ========== */
+
+.screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+
+.screen.active {
+  display: flex;
+}
+
+/* ========== TITLE SCREEN ========== */
+
+#game-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(201, 162, 39, 0.5), 0 0 40px rgba(201, 162, 39, 0.2);
+  animation: titleGlow 3s ease-in-out infinite;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes titleGlow {
+  0%, 100% {
+    text-shadow: 0 0 20px rgba(201, 162, 39, 0.5), 0 0 40px rgba(201, 162, 39, 0.2);
+  }
+  50% {
+    text-shadow: 0 0 30px rgba(201, 162, 39, 0.8), 0 0 60px rgba(201, 162, 39, 0.4), 0 0 80px rgba(201, 162, 39, 0.15);
+  }
+}
+
+.tagline {
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin-bottom: 2.5rem;
+  letter-spacing: 0.05em;
+}
+
+.setup-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.setup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.setup-row label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.hint {
+  font-family: 'Crimson Text', serif;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+input[type="number"],
+input[type="text"],
+select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: 'Crimson Text', serif;
+  font-size: 1rem;
+  padding: 0.4rem 0.7rem;
+  width: 140px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--accent);
+}
+
+/* ========== BUTTONS ========== */
+
+.btn-primary {
+  background: var(--accent-dark);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 0.6rem 1.4rem;
+  transition: background 0.2s, color 0.2s;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: 'Cinzel', serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  padding: 0.45rem 1rem;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ========== GAME SCREEN ========== */
+
+#screen-game {
+  padding: 0;
+  width: 100%;
+}
+
+#game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0.6rem 1.2rem;
+  width: 100%;
+}
+
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hud-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.hud-count {
+  font-family: 'Cinzel', serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.hud-player .hud-count {
+  color: var(--player-color);
+}
+
+.hud-ai .hud-count {
+  color: var(--ai-color);
+}
+
+.hud-turn {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-align: center;
+}
+
+#canvas-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  width: 100%;
+}
+
+#board-canvas {
+  cursor: pointer;
+  display: block;
+  image-rendering: pixelated;
+}
+
+#tile-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  width: 100%;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+#game-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  max-height: 120px;
+  background: var(--surface);
+}
+
+#event-log {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-height: 100px;
+}
+
+#event-log .log-barbarian {
+  color: var(--danger);
+}
+
+#event-log .log-player {
+  color: var(--player-color);
+}
+
+#event-log .log-ai {
+  color: var(--ai-color);
+}
+
+.footer-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* ========== END SCREEN ========== */
+
+#screen-end {
+  justify-content: center;
+  text-align: center;
+  gap: 1.5rem;
+}
+
+#result-title {
+  font-family: 'Cinzel', serif;
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+#result-title.victory {
+  color: var(--accent);
+}
+
+#result-title.defeat {
+  color: var(--danger);
+}
+
+#result-title.draw {
+  color: var(--text-muted);
+}
+
+#result-score {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+}
+
+/* ========== WIZARD MODAL ========== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 2rem;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(201, 162, 39, 0.3);
+}
+
+.modal-card h2 {
+  font-family: 'Cinzel', serif;
+  font-size: 1.4rem;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.modal-card p {
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ========== SCROLLBAR ========== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
