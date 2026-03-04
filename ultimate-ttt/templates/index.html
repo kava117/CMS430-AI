@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ultimate Tic-Tac-Toe</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Ultimate Tic-Tac-Toe</h1>
+  </header>
+
+  <main>
+    <!-- Setup panel: shown before game starts and after it ends -->
+    <section id="setup-panel">
+      <h2>New Game</h2>
+      <div class="setup-row">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+      <div class="setup-row">
+        <label for="side">Play as</label>
+        <select id="side">
+          <option value="X">X (goes first)</option>
+          <option value="O">O (goes second)</option>
+        </select>
+      </div>
+      <button id="start-btn">Start Game</button>
+    </section>
+
+    <!-- Game panel: shown during a game -->
+    <section id="game-panel" class="hidden">
+      <div id="status"></div>
+      <div id="board"></div>
+      <button id="new-game-btn">New Game</button>
+    </section>
+  </main>
+
+  <script src="/static/game.js"></script>
+</body>
+</html>
