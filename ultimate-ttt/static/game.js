@@ -180,6 +180,7 @@ async function onCellClick(boardIdx, cellIdx) {
       await new Promise(r => setTimeout(r, 600));
     }
 
+    waiting = false;
     renderBoard(gameState, null);
     updateStatus(gameState, false);
 
@@ -188,7 +189,6 @@ async function onCellClick(boardIdx, cellIdx) {
     }
   } catch (err) {
     console.error("Fetch error:", err);
-  } finally {
     waiting = false;
   }
 }
@@ -221,11 +221,11 @@ async function startGame() {
       await new Promise(r => setTimeout(r, 600));
     }
 
+    waiting = false;
     renderBoard(gameState, null);
     updateStatus(gameState, false);
   } catch (err) {
     console.error("Start game error:", err);
-  } finally {
     waiting = false;
   }
 }
