@@ -1,0 +1,79 @@
+.chat-interface {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #0A0A0F;
+}
+
+.message-list {
+  height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.message {
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.message--sunzi { text-align: left; }
+.message--user  { text-align: right; color: #888; }
+
+.prefix {
+  font-weight: bold;
+}
+
+.sunzi-prefix { color: var(--tone-color, #4A9EFF); }
+.user-prefix  { color: #666; }
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid var(--tone-color, #4A9EFF);
+  padding-top: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text, #C8C8D0);
+  font-family: inherit;
+  font-size: 13px;
+  caret-color: var(--tone-color, #4A9EFF);
+}
+
+.submit-btn {
+  background: transparent;
+  border: 1px solid var(--tone-color, #4A9EFF);
+  color: var(--tone-color, #4A9EFF);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.submit-btn:disabled,
+.chat-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.loading-text {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--tone-color, #4A9EFF);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}

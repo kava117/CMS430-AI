@@ -1,0 +1,56 @@
+/* CSS variables per tone */
+:root {
+  --tone-color: #4A9EFF;
+  --bg: #0A0A0F;
+  --text: #C8C8D0;
+  --font: 'Courier New', 'JetBrains Mono', monospace;
+}
+
+.app[data-tone="neutral"]       { --tone-color: #4A9EFF; }
+.app[data-tone="probing"]       { --tone-color: #FFB347; }
+.app[data-tone="contemptuous"]  { --tone-color: #CC2233; }
+.app[data-tone="illuminated"]   { --tone-color: #FFFFFF; }
+.app[data-tone="recalibrating"] { --tone-color: #888888; }
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-header {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--tone-color);
+  border-bottom: 1px solid var(--tone-color);
+  padding-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.app-top {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid var(--tone-color);
+  padding: 12px;
+}

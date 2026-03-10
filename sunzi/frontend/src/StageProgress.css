@@ -1,0 +1,36 @@
+.stage-progress {
+  padding: 10px 12px;
+}
+
+.stage-segments {
+  display: flex;
+  gap: 4px;
+}
+
+.stage-segment {
+  flex: 1;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 5px 4px;
+  border: 1px solid #333;
+  color: #444;
+}
+
+.stage-segment--completed {
+  border-color: var(--tone-color, #4A9EFF);
+  color: var(--tone-color, #4A9EFF);
+  background: rgba(74, 158, 255, 0.08);
+}
+
+.stage-segment--current {
+  border-color: var(--tone-color, #4A9EFF);
+  color: #0A0A0F;
+  background: var(--tone-color, #4A9EFF);
+  font-weight: bold;
+}
+
+.stage-segment--upcoming {
+  border-color: #222;
+  color: #333;
+}

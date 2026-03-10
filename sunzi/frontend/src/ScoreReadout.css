@@ -1,0 +1,36 @@
+.score-readout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.score-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #888;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.score-bar-wrapper {
+  flex: 1;
+  height: 8px;
+  background: #1a1a22;
+  border: 1px solid #333;
+  position: relative;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  background: var(--tone-color, #4A9EFF);
+  transition: width 0.4s ease;
+}
+
+.score-value {
+  font-size: 11px;
+  color: var(--tone-color, #4A9EFF);
+  min-width: 36px;
+  text-align: right;
+}
