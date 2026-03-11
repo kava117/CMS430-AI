@@ -75,6 +75,29 @@ def get_state(session_id):
     return jsonify(state)
 
 
+@app.route('/api/start', methods=['POST'])
+def start():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id", "default")
+
+    # Reset to a clean state for this session
+    state = state_machine.reset(session_id)
+    session_histories[session_id] = []
+
+    # Generate SUNZI's opening line without any user input
+    rag_results = _get_rag_results(state["topic"], state["stage"], "")
+    rag_context = format_rag_context(rag_results)
+    opening_prompt = "BEGIN THE ASSESSMENT. Deliver your opening statement to the student."
+    response_text = generate_response(opening_prompt, state, "neutral", rag_context, [])
+
+    session_histories[session_id] = [{"role": "sunzi", "content": response_text}]
+
+    return jsonify({
+        "response_text": response_text,
+        "state": state,
+    })
+
+
 @app.route('/api/reset', methods=['POST'])
 def reset():
     data = request.get_json(silent=True) or {}

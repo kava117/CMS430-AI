@@ -2,12 +2,12 @@ TOPICS = ["deception", "self_knowledge", "adaptability", "victory"]
 STAGES = ["introduction", "examination", "challenge", "resolution"]
 
 SCORE_DELTAS = {
-    "insight": 10,
+    "insight": 12,
     "understanding": 5,
-    "clarification": 0,
-    "confusion": -3,
-    "evasion": -5,
-    "off_topic": -7,
+    "clarification": -2,
+    "confusion": -6,
+    "evasion": -8,
+    "off_topic": -10,
 }
 
 # Classifications that count as positive signals for stage advancement

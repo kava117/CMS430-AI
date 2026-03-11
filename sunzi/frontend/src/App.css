@@ -54,3 +54,67 @@ body {
   border: 1px solid var(--tone-color);
   padding: 12px;
 }
+
+/* Intermittent ambient flicker on the whole app */
+.app.flicker {
+  animation: ambient-flicker 0.3s steps(1, end);
+}
+
+@keyframes ambient-flicker {
+  0%   { opacity: 1; }
+  15%  { opacity: 0.7; }
+  30%  { opacity: 1; }
+  50%  { opacity: 0.5; }
+  65%  { opacity: 0.95; }
+  80%  { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* Boot flicker overlay */
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0A0A0F;
+  z-index: 9999;
+  pointer-events: none;
+  animation: crt-boot 1.8s steps(1, end) forwards;
+}
+
+.boot-overlay-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: #4A9EFF;
+  opacity: 0;
+  animation: boot-text-flash 1.8s steps(1, end) forwards;
+}
+
+@keyframes crt-boot {
+  0%   { opacity: 1; }
+  12%  { opacity: 0.05; }
+  16%  { opacity: 1; }
+  30%  { opacity: 0.08; }
+  34%  { opacity: 0.9; }
+  48%  { opacity: 0.05; }
+  52%  { opacity: 0.7; }
+  62%  { opacity: 0; }
+  66%  { opacity: 0.25; }
+  74%  { opacity: 0; }
+  78%  { opacity: 0.1; }
+  86%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes boot-text-flash {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  16%  { opacity: 0; }
+  30%  { opacity: 1; }
+  34%  { opacity: 0; }
+  48%  { opacity: 1; }
+  52%  { opacity: 0; }
+  100% { opacity: 0; }
+}

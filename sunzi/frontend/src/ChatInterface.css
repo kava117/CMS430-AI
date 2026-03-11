@@ -12,6 +12,21 @@
   flex-direction: column;
   gap: 6px;
   padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tone-color, #4A9EFF) #0A0A0F;
+}
+
+.message-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.message-list::-webkit-scrollbar-track {
+  background: #0A0A0F;
+}
+
+.message-list::-webkit-scrollbar-thumb {
+  background: var(--tone-color, #4A9EFF);
+  opacity: 0.5;
 }
 
 .message {
@@ -20,8 +35,26 @@
   word-break: break-word;
 }
 
-.message--sunzi { text-align: left; }
-.message--user  { text-align: right; color: #888; }
+.message--sunzi  { text-align: left; }
+.message--user   { text-align: right; color: #888; }
+.message--system { text-align: left; }
+
+.system-blurb {
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #555;
+  white-space: pre-wrap;
+  border-bottom: 1px solid #1a1a2e;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  color: #4A9EFF;
+  animation: blink 0.7s step-end infinite;
+}
 
 .prefix {
   font-weight: bold;

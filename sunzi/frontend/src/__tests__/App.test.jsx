@@ -1,6 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+
+vi.mock('../ChatInterface', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, TYPEWRITER_SPEED: 0, BOOT_ANIM_MS: 0 }
+})
+
 import App from '../App'
 
 const INITIAL_STATE = {
@@ -14,6 +20,13 @@ function mockFetch(state = INITIAL_STATE, response_text = 'SUNZI speaks.') {
       json: () => Promise.resolve({ state, response_text, classification: 'understanding' }),
     })
   )
+}
+
+/** Wait for the initial /api/start call to resolve (input becomes available). */
+async function renderAndWaitForStart(state, response_text) {
+  mockFetch(state, response_text)
+  render(<App />)
+  await waitFor(() => screen.getAllByText(/> SUNZI:/))
 }
 
 beforeEach(() => {
@@ -30,30 +43,32 @@ describe('App', () => {
   it('renders the header text', () => {
     mockFetch()
     render(<App />)
-    expect(screen.getByText(/STRATEGIC INTELLIGENCE ASSESSMENT MODULE/i)).toBeTruthy()
+    expect(screen.getAllByText(/STRATEGIC INTELLIGENCE ASSESSMENT MODULE/i).length).toBeGreaterThan(0)
   })
 
-  it('initial isLoading is false — input is enabled', () => {
-    mockFetch()
-    render(<App />)
+  it('after start resolves, input is enabled', async () => {
+    await renderAndWaitForStart()
     const input = screen.getByRole('textbox')
     expect(input).not.toBeDisabled()
   })
 
-  it('initial messages array is empty — no messages rendered', () => {
-    mockFetch()
-    render(<App />)
-    expect(screen.queryByText(/> SUNZI:/)).toBeNull()
-    expect(screen.queryByText(/> YOU:/)).toBeNull()
+  it('after start resolves, opening SUNZI message is shown', async () => {
+    await renderAndWaitForStart()
+    expect(screen.getByText(/> SUNZI:/)).toBeTruthy()
   })
 
   it('sets isLoading true during fetch (input disabled)', async () => {
+    // First resolve the start call
+    mockFetch()
+    render(<App />)
+    await waitFor(() => screen.getByRole('textbox'))
+
+    // Now set up a pending fetch for the turn call
     let resolveFetch
     global.fetch = vi.fn(() =>
       new Promise((resolve) => { resolveFetch = resolve })
     )
     const user = userEvent.setup()
-    render(<App />)
     const input = screen.getByRole('textbox')
     await user.type(input, 'my answer')
     await user.keyboard('{Enter}')
@@ -66,22 +81,20 @@ describe('App', () => {
   })
 
   it('after fetch, messages contain user and sunzi entries', async () => {
-    mockFetch()
+    await renderAndWaitForStart()
     const user = userEvent.setup()
-    render(<App />)
     const input = screen.getByRole('textbox')
     await user.type(input, 'my answer')
     await user.keyboard('{Enter}')
     await waitFor(() => {
       expect(screen.getByText(/> YOU:/)).toBeTruthy()
-      expect(screen.getByText(/> SUNZI:/)).toBeTruthy()
     })
+    expect(screen.getAllByText(/> SUNZI:/).length).toBeGreaterThan(0)
   })
 
   it('after fetch, gameState is updated from response', async () => {
-    mockFetch({ ...INITIAL_STATE, tone: 'probing', score: 45 })
+    await renderAndWaitForStart({ ...INITIAL_STATE, tone: 'probing', score: 45 })
     const user = userEvent.setup()
-    render(<App />)
     const input = screen.getByRole('textbox')
     await user.type(input, 'my answer')
     await user.keyboard('{Enter}')
@@ -91,9 +104,8 @@ describe('App', () => {
   })
 
   it('after fetch, isLoading is false and input re-enabled', async () => {
-    mockFetch()
+    await renderAndWaitForStart()
     const user = userEvent.setup()
-    render(<App />)
     const input = screen.getByRole('textbox')
     await user.type(input, 'my answer')
     await user.keyboard('{Enter}')
@@ -102,14 +114,14 @@ describe('App', () => {
     })
   })
 
-  it('fetch called with correct URL and body', async () => {
-    mockFetch()
+  it('fetch called with correct URL and body for turn', async () => {
+    await renderAndWaitForStart()
     const user = userEvent.setup()
-    render(<App />)
     const input = screen.getByRole('textbox')
     await user.type(input, 'test input')
     await user.keyboard('{Enter}')
     await waitFor(() => {
+      // /api/start is call 0; /api/turn is call 1
       expect(global.fetch).toHaveBeenCalledWith('/api/turn', expect.objectContaining({
         method: 'POST',
         body: expect.stringContaining('test input'),
@@ -118,14 +130,16 @@ describe('App', () => {
   })
 
   it('fetch body contains session_id', async () => {
-    mockFetch()
+    await renderAndWaitForStart()
     const user = userEvent.setup()
-    render(<App />)
     const input = screen.getByRole('textbox')
     await user.type(input, 'answer')
     await user.keyboard('{Enter}')
     await waitFor(() => {
-      const body = JSON.parse(global.fetch.mock.calls[0][1].body)
+      // find the /api/turn call (second call, index 1)
+      const turnCall = global.fetch.mock.calls.find(([url]) => url === '/api/turn')
+      expect(turnCall).toBeTruthy()
+      const body = JSON.parse(turnCall[1].body)
       expect(body.session_id).toBeTruthy()
       expect(typeof body.session_id).toBe('string')
     })
