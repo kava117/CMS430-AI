@@ -19,12 +19,12 @@ DIFFICULTY_SETTINGS = {
         },
         "tone_threshold": 3,
         "stage_advance_min_turns": 1,
-        "initial_score": 60,
+        "initial_score": 50,
     },
     "normal": {
         "score_deltas": {
-            "insight": 12,
-            "understanding": 5,
+            "insight": 10,
+            "understanding": 4,
             "clarification": -2,
             "confusion": -6,
             "evasion": -8,
@@ -32,12 +32,12 @@ DIFFICULTY_SETTINGS = {
         },
         "tone_threshold": 2,
         "stage_advance_min_turns": 2,
-        "initial_score": 50,
+        "initial_score": 25,
     },
     "hard": {
         "score_deltas": {
-            "insight": 12,
-            "understanding": 5,
+            "insight": 8,
+            "understanding": 3,
             "clarification": -3,
             "confusion": -8,
             "evasion": -10,
@@ -45,7 +45,7 @@ DIFFICULTY_SETTINGS = {
         },
         "tone_threshold": 2,
         "stage_advance_min_turns": 2,
-        "initial_score": 40,
+        "initial_score": 0,
     },
 }
 
@@ -99,16 +99,42 @@ class StateMachine:
 
         return _public_state(state)
 
-    def set_difficulty(self, session_id: str, difficulty: str) -> dict:
+    def set_difficulty(self, session_id: str, difficulty: str, update_score: bool = False) -> dict:
         if session_id not in self.sessions:
             self.sessions[session_id] = _initial_state(difficulty)
         else:
             self.sessions[session_id]["difficulty"] = difficulty
+            if update_score:
+                settings = DIFFICULTY_SETTINGS.get(difficulty, DIFFICULTY_SETTINGS["normal"])
+                self.sessions[session_id]["score"] = settings["initial_score"]
         return _public_state(self.sessions[session_id])
 
     def reset(self, session_id: str, difficulty: str = "normal") -> dict:
         self.sessions[session_id] = _initial_state(difficulty)
         return _public_state(self.sessions[session_id])
+
+    def debug_advance(self, session_id: str) -> dict:
+        """Force-advance to the next stage, bypassing turn count and classification requirements."""
+        if session_id not in self.sessions:
+            self.sessions[session_id] = _initial_state()
+        state = self.sessions[session_id]
+        if state["conversation_complete"]:
+            return _public_state(state)
+
+        current_stage_idx = STAGES.index(state["stage"])
+        if current_stage_idx < len(STAGES) - 1:
+            state["stage"] = STAGES[current_stage_idx + 1]
+            state["stage_turn_count"] = 0
+        else:
+            state["topic_index"] += 1
+            if state["topic_index"] >= len(TOPICS):
+                state["conversation_complete"] = True
+            else:
+                state["topic"] = TOPICS[state["topic_index"]]
+                state["stage"] = STAGES[0]
+                state["stage_turn_count"] = 0
+
+        return _public_state(state)
 
 
 def _reset_signal_count(state: dict):

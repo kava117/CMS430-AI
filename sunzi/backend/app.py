@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 from state_machine import StateMachine
 from classifier import classify_input
-from generator import generate_response, format_rag_context
+from generator import generate_response, format_rag_context, generate_epitaph
 
 load_dotenv()
 
@@ -46,17 +46,24 @@ def handle_turn():
     # 3. Update state based on classification
     state = state_machine.process_turn(session_id, classification)
 
-    # 4. Query RAG
+    # 4. Get conversation history
+    history = session_histories.get(session_id, [])
+
+    # 5. Generate response (skipped if assessment just completed — overlay handles the summary)
+    if state.get("conversation_complete"):
+        history = list(history)
+        history.append({"role": "user", "content": user_input})
+        session_histories[session_id] = history
+        return jsonify({"response_text": None, "state": state, "classification": classification})
+
+    # 6. Query RAG
     rag_results = _get_rag_results(state["topic"], state["stage"], user_input)
     rag_context = format_rag_context(rag_results)
 
-    # 5. Get conversation history
-    history = session_histories.get(session_id, [])
-
-    # 6. Generate response
+    # 7. Generate response
     response_text = generate_response(user_input, state, classification, rag_context, history)
 
-    # 7. Update history
+    # 8. Update history
     history = list(history)
     history.append({"role": "user", "content": user_input})
     history.append({"role": "sunzi", "content": response_text})
@@ -80,7 +87,9 @@ def set_difficulty():
     data = request.get_json(silent=True) or {}
     session_id = data.get("session_id", "default")
     difficulty = data.get("difficulty", "normal")
-    state = state_machine.set_difficulty(session_id, difficulty)
+    history = session_histories.get(session_id, [])
+    conversation_started = any(m["role"] == "user" for m in history)
+    state = state_machine.set_difficulty(session_id, difficulty, update_score=not conversation_started)
     return jsonify(state)
 
 
@@ -106,6 +115,24 @@ def start():
         "response_text": response_text,
         "state": state,
     })
+
+
+@app.route('/api/debug/advance', methods=['POST'])
+def debug_advance():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id", "default")
+    state = state_machine.debug_advance(session_id)
+    return jsonify({"state": state})
+
+
+@app.route('/api/epitaph', methods=['POST'])
+def epitaph():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id", "default")
+    state = state_machine.get_state(session_id)
+    history = session_histories.get(session_id, [])
+    text = generate_epitaph(history, state.get("score", 50))
+    return jsonify({"epitaph": text})
 
 
 @app.route('/api/reset', methods=['POST'])

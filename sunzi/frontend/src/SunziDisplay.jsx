@@ -6,6 +6,7 @@ const TONE_CONFIG = {
   contemptuous:  { color: '#CC2233', animationClass: 'still',       label: 'CONTEMPTUOUS' },
   illuminated:   { color: '#FFFFFF', animationClass: 'flare',       label: 'ILLUMINATED' },
   recalibrating: { color: '#888888', animationClass: 'glitch',      label: 'RECALIBRATING' },
+  archived:      { color: '#2a2a3a', animationClass: 'archived',    label: 'ARCHIVED' },
 }
 
 export default function SunziDisplay({ tone }) {

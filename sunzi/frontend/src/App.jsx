@@ -4,6 +4,7 @@ import ChatInterface, { TYPEWRITER_SPEED, BOOT_ANIM_MS } from './ChatInterface'
 import TopicGraph from './TopicGraph'
 import StageProgress from './StageProgress'
 import ScoreReadout from './ScoreReadout'
+import GameOver from './GameOver'
 import './App.css'
 
 const BOOT_BLURB = `STRATEGIC INTELLIGENCE ASSESSMENT MODULE v.7.3
@@ -51,6 +52,8 @@ export default function App() {
   const [booting, setBooting] = useState(true)
   const [flickering, setFlickering] = useState(false)
   const [difficulty, setDifficulty] = useState('normal')
+  const [epitaph, setEpitaph] = useState(null)
+  const [showGameOver, setShowGameOver] = useState(false)
 
   // Intermittent ambient flicker — triggers randomly every 8–20 seconds
   useEffect(() => {
@@ -90,6 +93,27 @@ export default function App() {
     initSession()
   }, [sessionId])
 
+  const handleRestart = async () => {
+    setIsLoading(true)
+    setEpitaph(null)
+    setShowGameOver(false)
+    setMessages([{ role: 'system', content: BOOT_BLURB }])
+    setGameState(INITIAL_STATE)
+    try {
+      const data = await fetch('/api/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, difficulty }),
+      }).then((r) => r.json())
+      setGameState(data.state)
+      setMessages([{ role: 'system', content: BOOT_BLURB }, { role: 'sunzi', content: data.response_text }])
+    } catch (err) {
+      console.error('Restart error:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleDifficultyChange = async (newDifficulty) => {
     setDifficulty(newDifficulty)
     try {
@@ -117,8 +141,19 @@ export default function App() {
       setMessages((prev) => [
         ...prev,
         { role: 'user', content: userInput },
-        { role: 'sunzi', content: data.response_text },
+        ...(data.response_text ? [{ role: 'sunzi', content: data.response_text }] : []),
       ])
+      if (data.state.conversation_complete) {
+        fetch('/api/epitaph', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId }),
+        })
+          .then((r) => r.json())
+          .then((d) => setEpitaph(d.epitaph))
+          .catch(() => setEpitaph(null))
+        setShowGameOver(true)
+      }
     } catch (err) {
       console.error('API error:', err)
     } finally {
@@ -155,7 +190,7 @@ export default function App() {
       </header>
 
       <div className="app-top">
-        <SunziDisplay tone={gameState.tone} />
+        <SunziDisplay tone={gameState.conversation_complete ? 'archived' : gameState.tone} />
         <TopicGraph topicIndex={gameState.topic_index} topics={TOPICS} stage={gameState.stage} />
       </div>
 
@@ -167,6 +202,29 @@ export default function App() {
         isLoading={isLoading}
         tone={gameState.tone}
       />
+
+      {showGameOver && (
+        <GameOver score={gameState.score} epitaph={epitaph} onRestart={handleRestart} />
+      )}
+
+      <button
+        className="debug-advance"
+        title="[DEBUG] Advance stage"
+        onClick={async () => {
+          try {
+            const r = await fetch('/api/debug/advance', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: sessionId }),
+            })
+            if (!r.ok) { console.error('[debug] advance failed:', r.status, await r.text()); return }
+            const data = await r.json()
+            setGameState(data.state)
+          } catch (err) {
+            console.error('[debug] advance error:', err)
+          }
+        }}
+      >▶</button>
     </div>
   )
 }

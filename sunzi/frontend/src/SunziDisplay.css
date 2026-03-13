@@ -47,3 +47,10 @@
 .still       { animation: none; }
 .flare       { animation: flare-anim 0.8s ease-out forwards; }
 .glitch      { animation: glitch-anim 1.2s steps(1) infinite; }
+.archived    { animation: archived-anim 4s ease-out forwards; }
+
+@keyframes archived-anim {
+  0%   { opacity: 1;    transform: scale(1); }
+  40%  { opacity: 0.25; transform: scale(0.97); }
+  100% { opacity: 0.08; transform: scale(0.94); }
+}

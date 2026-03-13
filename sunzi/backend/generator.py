@@ -10,6 +10,17 @@ logger = logging.getLogger(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 FALLBACK_RESPONSE = "INPUT PROCESSING ERROR. RESTATE YOUR RESPONSE."
+FALLBACK_EPITAPH = "The record is closed. No annotation was generated."
+
+EPITAPH_SYSTEM_PROMPT = """You are SUNZI. The assessment is over. Write a permanent archival annotation on this subject — 1 to 2 sentences maximum.
+
+Rules:
+- Reference something specific from the conversation: a particular answer, a pattern of evasion, a moment of clarity, or its absence.
+- Declarative only. No questions. No hedging.
+- Cold and archival. This is the permanent record, not a message to the student.
+- Do not summarize the whole conversation. Choose one thing that defines this subject.
+- Do not use the student's name. Do not use "you."
+"""
 
 
 def format_rag_context(rag_results: list) -> str:
@@ -32,6 +43,26 @@ def format_rag_context(rag_results: list) -> str:
             context += f"{chunk['text']}\n\n"
 
     return context.strip()
+
+
+def generate_epitaph(conversation_history: list, score: int) -> str:
+    """Generate a 1-2 sentence archival annotation on the subject's performance."""
+    try:
+        history_text = format_history(conversation_history)
+        prompt = f"Final score: {score}/100\n\nConversation:\n{history_text}"
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": EPITAPH_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=80,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"Epitaph error: {e}")
+        return FALLBACK_EPITAPH
 
 
 def format_history(history: list) -> str:
