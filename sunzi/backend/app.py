@@ -41,7 +41,7 @@ def handle_turn():
     state = state_machine.get_state(session_id)
 
     # 2. Classify input
-    classification = classify_input(user_input, state["topic"], state["stage"])
+    classification = classify_input(user_input, state["topic"], state["stage"], state.get("difficulty", "normal"))
 
     # 3. Update state based on classification
     state = state_machine.process_turn(session_id, classification)
@@ -75,13 +75,23 @@ def get_state(session_id):
     return jsonify(state)
 
 
+@app.route('/api/set_difficulty', methods=['POST'])
+def set_difficulty():
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id", "default")
+    difficulty = data.get("difficulty", "normal")
+    state = state_machine.set_difficulty(session_id, difficulty)
+    return jsonify(state)
+
+
 @app.route('/api/start', methods=['POST'])
 def start():
     data = request.get_json(silent=True) or {}
     session_id = data.get("session_id", "default")
+    difficulty = data.get("difficulty", "normal")
 
     # Reset to a clean state for this session
-    state = state_machine.reset(session_id)
+    state = state_machine.reset(session_id, difficulty)
     session_histories[session_id] = []
 
     # Generate SUNZI's opening line without any user input

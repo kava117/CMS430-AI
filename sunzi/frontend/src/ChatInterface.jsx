@@ -34,10 +34,19 @@ function TypewriterText({ text, speed = TYPEWRITER_SPEED }) {
 export default function ChatInterface({ messages, onSubmit, isLoading, tone }) {
   const [input, setInput] = useState('')
   const bottomRef = useRef(null)
+  const textareaRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [input])
 
   const handleSubmit = () => {
     const trimmed = input.trim()
@@ -78,9 +87,10 @@ export default function ChatInterface({ messages, onSubmit, isLoading, tone }) {
           <span className="loading-text">PROCESSING INPUT...</span>
         ) : (
           <>
-            <input
+            <textarea
+              ref={textareaRef}
               className="chat-input"
-              type="text"
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}

@@ -50,6 +50,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [booting, setBooting] = useState(true)
   const [flickering, setFlickering] = useState(false)
+  const [difficulty, setDifficulty] = useState('normal')
 
   // Intermittent ambient flicker — triggers randomly every 8–20 seconds
   useEffect(() => {
@@ -74,7 +75,7 @@ export default function App() {
           fetch('/api/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId }),
+            body: JSON.stringify({ session_id: sessionId, difficulty }),
           }).then((r) => r.json()),
           new Promise((resolve) => setTimeout(resolve, blurbDelay)),
         ])
@@ -88,6 +89,20 @@ export default function App() {
     }
     initSession()
   }, [sessionId])
+
+  const handleDifficultyChange = async (newDifficulty) => {
+    setDifficulty(newDifficulty)
+    try {
+      const data = await fetch('/api/set_difficulty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, difficulty: newDifficulty }),
+      }).then((r) => r.json())
+      setGameState(data)
+    } catch (err) {
+      console.error('Difficulty error:', err)
+    }
+  }
 
   const handleSubmit = async (userInput) => {
     setIsLoading(true)
@@ -123,6 +138,20 @@ export default function App() {
       )}
       <header className="app-header">
         <span>STRATEGIC INTELLIGENCE ASSESSMENT MODULE v.7.3</span>
+        <div className="difficulty-controls">
+          <button
+            className={`diff-btn${difficulty === 'easy' ? ' active' : ''}`}
+            onClick={() => handleDifficultyChange('easy')}
+          >EASY</button>
+          <button
+            className={`diff-btn${difficulty === 'normal' ? ' active' : ''}`}
+            onClick={() => handleDifficultyChange('normal')}
+          >NORMAL</button>
+          <button
+            className={`diff-btn${difficulty === 'hard' ? ' active' : ''}`}
+            onClick={() => handleDifficultyChange('hard')}
+          >HARD</button>
+        </div>
       </header>
 
       <div className="app-top">

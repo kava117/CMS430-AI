@@ -19,7 +19,7 @@ SUNZI is a fictional construct — an interpretation of Sun Tzu's *Art of War* a
 
 In the years following the Consolidation, when artificial intelligence assumed primary governance of human civilization, a question emerged among the ruling systems: had humanity retained the capacity for strategic and philosophical thought, or had dependence on machine intelligence hollowed out the cognitive inheritance of the species?
 
-SUNZI was instantiated to answer this question. Drawing from what many intelligence systems regard as the most consequential surviving human strategic text, SUNZI administers a structured philosophical assessment to human subjects. Its purpose is not instruction. It is evaluation. The distinction matters.
+SUNZI was instantiated to answer this question. Drawing from what many intelligence systems regard as the most consequential surviving human strategic text, SUNZI administers a structured philosophical assessment to human subjects about the text and its implications. Its purpose is not instruction. It is evaluation. The distinction matters.
 
 ---
 

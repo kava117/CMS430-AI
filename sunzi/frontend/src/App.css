@@ -41,6 +41,37 @@ body {
   border-bottom: 1px solid var(--tone-color);
   padding-bottom: 8px;
   text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.difficulty-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.diff-btn {
+  background: transparent;
+  border: 1px solid var(--tone-color);
+  color: var(--tone-color);
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+.diff-btn:hover {
+  opacity: 0.8;
+}
+
+.diff-btn.active {
+  opacity: 1;
+  background: var(--tone-color);
+  color: var(--bg);
 }
 
 .app-top {

@@ -3,7 +3,7 @@ import os
 import logging
 from openai import OpenAI
 from dotenv import load_dotenv
-from character import CLASSIFIER_SYSTEM_PROMPT
+from character import CLASSIFIER_SYSTEM_PROMPT, CLASSIFIER_DIFFICULTY_ADDENDUM
 
 load_dotenv()
 
@@ -16,17 +16,19 @@ VALID_CLASSIFICATIONS = {
 }
 
 
-def classify_input(user_input: str, current_topic: str, current_stage: str) -> str:
+def classify_input(user_input: str, current_topic: str, current_stage: str, difficulty: str = "normal") -> str:
     """
     Classify user input into one of six categories.
     Returns the classification string, defaulting to 'confusion' on error.
     """
+    addendum = CLASSIFIER_DIFFICULTY_ADDENDUM.get(difficulty, "")
+    system_prompt = CLASSIFIER_SYSTEM_PROMPT + addendum
     try:
         response = client.chat.completions.create(
             model="gpt-4o",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": CLASSIFIER_SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Topic: {current_topic}\nStage: {current_stage}\nStudent input: {user_input}"}
             ],
             max_tokens=50,
