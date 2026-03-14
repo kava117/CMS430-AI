@@ -91,12 +91,27 @@ def generate_response(
     try:
         history_text = format_history(conversation_history)
 
+        student_has_answered = any(t["role"] == "user" for t in conversation_history)
+        if student_has_answered:
+            classification_instruction = {
+                "confusion":     "Name the specific error in one clause ('You conflate X with Y' / 'That inverts the principle'). Then ask the next question.",
+                "evasion":       "Note in one clause what was absent ('You stated no mechanism' / 'That is assertion, not analysis'). Then ask the next question.",
+                "understanding": "In one clause, extend or draw out one implication of what the student got right. Then advance.",
+                "insight":       "In one sentence, engage directly with the novel element. Then advance.",
+                "clarification": "Answer the question in one sentence. Reissue the question.",
+                "off_topic":     "Flag the input as outside assessment parameters in one clause. Reissue the last question.",
+            }.get(classification, "Address the student's previous answer before asking the next question.")
+        else:
+            classification_instruction = "No prior student answer exists. Ask the opening question without preamble or evaluation."
+
         turn_prompt = f"""CURRENT ASSESSMENT STATE:
 - Topic: {state['topic']}
 - Stage: {state['stage']}
 - Tone: {state['tone']}
 - Student score: {state['score']}/100
 - Student's last classification: {classification}
+
+CLASSIFICATION INSTRUCTION: {classification_instruction}
 
 RETRIEVED PASSAGES:
 {rag_context}
