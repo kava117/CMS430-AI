@@ -85,8 +85,24 @@ eval_model <- function(actual, predicted, model_name) {
     Accuracy  = round(accuracy,  4),
     Precision = round(precision, 4),
     Recall    = round(recall,    4),
-    F1        = round(f1,        4)
+    F1        = round(f1,        4),
+    CM        = cm$table
   )
+}
+
+plot_confusion_matrix <- function(result) {
+  cm_df <- as.data.frame(result$CM)
+  safe_name <- gsub(" ", "_", tolower(result$Model))
+
+  p <- ggplot(cm_df, aes(x = Reference, y = Prediction, fill = Freq)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = Freq), size = 6, fontface = "bold") +
+    scale_fill_gradient(low = "#E3F2FD", high = "#1565C0") +
+    labs(title = paste("Confusion Matrix —", result$Model),
+         x = "Actual", y = "Predicted", fill = "Count") +
+    theme_minimal()
+
+  ggsave(paste0("plot_cm_", safe_name, ".png"), plot = p, width = 5, height = 4)
 }
 
 # 6. Model 1: Logistic Regression
@@ -96,6 +112,7 @@ lr_probs <- predict(lr_model, newdata = test_df, type = "response")
 lr_preds <- factor(ifelse(lr_probs >= 0.5, "Yes", "No"), levels = c("No", "Yes"))
 
 lr_results <- eval_model(test_df$Churn, lr_preds, "Logistic Regression")
+plot_confusion_matrix(lr_results)
 
 # 7. Model 2: Random Forest
 set.seed(42)
@@ -109,12 +126,11 @@ rf_model <- randomForest(
 
 rf_preds   <- predict(rf_model, newdata = test_df)
 rf_results <- eval_model(test_df$Churn, rf_preds, "Random Forest")
+plot_confusion_matrix(rf_results)
 
 # 8. Model Comparison Summary
-comparison <- bind_rows(
-  as_tibble(lr_results),
-  as_tibble(rf_results)
-) %>%
+to_row <- function(r) as_tibble(r[c("Model","Accuracy","Precision","Recall","F1")])
+comparison <- bind_rows(to_row(lr_results), to_row(rf_results)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 4)))
 
 cat("\n===== Model Comparison =====\n")
@@ -135,6 +151,21 @@ p3 <- ggplot(importance_df,
   theme_minimal()
 
 ggsave("plot_feature_importance.png", plot = p3, width = 7, height = 5)
+
+# 10. Model Comparison Plot
+comparison_long <- comparison %>%
+  pivot_longer(cols = c(Accuracy, Precision, Recall, F1),
+               names_to = "Metric", values_to = "Value")
+
+p4 <- ggplot(comparison_long, aes(x = Metric, y = Value, fill = Model)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(limits = c(0, 1), labels = percent_format()) +
+  scale_fill_manual(values = c("Logistic Regression" = "#2196F3", "Random Forest" = "#FF9800")) +
+  labs(title = "Model Comparison: Logistic Regression vs. Random Forest",
+       x = "Metric", y = "Score") +
+  theme_minimal()
+
+ggsave("plot_model_comparison.png", plot = p4, width = 7, height = 5)
 
 # =============================================================================
 # WRITEUP SUMMARY
