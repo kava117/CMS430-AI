@@ -1,0 +1,22 @@
+=============================
+WRITEUP
+=============================
+
+The results of my initial exploratory analyses were successful, and revealed
+that both tenure and contract type had effect over the retention of customers,
+displayed in the plot_tenure_churn and plot_contract_churn .png files.
+
+I decided to use two models, Random Forest and Logistic Regression, so that
+I could compare the results of both. This serves the dual purpose of 
+1) verifying that the models get similar results and 2) allows me to use the
+model that is better suited to this problem. The confusion matrices of both
+models have been saved in plot_cm_logistic_regression and plot_cm_random_forest.
+Additionally, the classifications of each model have been visualized in the
+plot_lr_odds_ratio and plot_feature_importance .pngs.
+
+Using the predictions from the Random Forest, I would recommend that the company
+begin new campaigns/incentives to retain long-time customers, and for
+customers to increase their contract lengths. Additionally, from the Regression
+model, I would recommend that when the company recruits new customers they focus
+on those with no Internet service and avoid households that use fiber.
+
