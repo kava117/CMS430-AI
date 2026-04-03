@@ -114,6 +114,27 @@ lr_preds <- factor(ifelse(lr_probs >= 0.5, "Yes", "No"), levels = c("No", "Yes")
 lr_results <- eval_model(test_df$Churn, lr_preds, "Logistic Regression")
 plot_confusion_matrix(lr_results)
 
+# Odds ratio plot for logistic regression
+lr_odds <- data.frame(
+  Feature  = names(coef(lr_model))[-1],
+  OddsRatio = exp(coef(lr_model))[-1]
+) %>%
+  arrange(desc(abs(log(OddsRatio)))) %>%
+  slice_head(n = 15)
+
+p_lr <- ggplot(lr_odds, aes(x = reorder(Feature, OddsRatio), y = OddsRatio)) +
+  geom_col(aes(fill = OddsRatio > 1)) +
+  scale_fill_manual(values = c("TRUE" = "#F44336", "FALSE" = "#4CAF50"),
+                    labels = c("TRUE" = "Increases churn", "FALSE" = "Decreases churn"),
+                    name = NULL) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "grey40") +
+  coord_flip() +
+  labs(title = "Top 15 Predictors — Logistic Regression (Odds Ratios)",
+       x = "Feature", y = "Odds Ratio") +
+  theme_minimal()
+
+ggsave("plot_lr_odds_ratio.png", plot = p_lr, width = 8, height = 6)
+
 # 7. Model 2: Random Forest
 set.seed(42)
 rf_model <- randomForest(
@@ -166,32 +187,3 @@ p4 <- ggplot(comparison_long, aes(x = Metric, y = Value, fill = Model)) +
   theme_minimal()
 
 ggsave("plot_model_comparison.png", plot = p4, width = 7, height = 5)
-
-# =============================================================================
-# WRITEUP SUMMARY
-# =============================================================================
-#
-# EDA Findings:
-#   Plot 1 (Contract vs. Churn): Month-to-month customers churn at a far higher
-#   rate (~43%) than one-year (~11%) or two-year (~3%) contract holders. Contract
-#   type is the single strongest categorical predictor visible in the raw data.
-#
-#   Plot 2 (Tenure vs. Churn): Customers who churn have a noticeably shorter
-#   median tenure (~10 months) compared to retained customers (~38 months).
-#   New customers are at the highest risk; reaching the ~2-year mark dramatically
-#   reduces churn probability.
-#
-# Model Results:
-#   Logistic Regression achieves ~80% accuracy with higher F1 (0.585) than
-#   Random Forest (0.532) on this dataset, suggesting it generalises better
-#   to the minority "Yes" class here. Random Forest matches on precision but
-#   yields lower recall, meaning it misses more actual churners.
-#
-# Recommendation:
-#   Deploy the Logistic Regression model for interpretability and performance.
-#   Flag any customer with a predicted churn probability >= 0.40 (lower than
-#   0.50 to increase recall for at-risk detection). Prioritise outreach to
-#   month-to-month customers in their first 12 months of tenure — this segment
-#   has the highest base-rate churn and the most to gain from early retention
-#   interventions (e.g., a targeted offer to switch to a one-year contract).
-# =============================================================================
