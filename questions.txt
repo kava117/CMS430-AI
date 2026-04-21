@@ -1,0 +1,11 @@
+1. ReLU is preferrable for large neural networks because it helps to avoid the vanishing gradient
+problem. As blame is tracked further and further back through a network during backpropagation,
+the derivatives become very small and less useful. ReLU either keeps nodes active, as is, or
+changes negative nodes to 0. This can become an issue if enough nodes "die" this way, so
+leaky ReLU attempts to fix the issue by returning small negative values instead of 0 so
+the nodes are not completely inactivated.
+
+2. The ReLU graph reached a higher accuracy much faster than the non-ReLU graph, but it seems
+to behave more consistenly erratically. After running the program with less epochs (100 rather 
+than 500), there was not nearly as much variance, leading me to believe that the eccentricity 
+was due to the model's dying nodes.
