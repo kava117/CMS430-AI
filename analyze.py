@@ -24,6 +24,13 @@ print('Saved output/heatmap_original.png')
 # Step 3: Generate 25 names using the statistical model
 row_sums = matrix.sum(axis=1, keepdims=True)
 prob_matrix = np.where(row_sums > 0, matrix / row_sums, 0.0)
+save_heatmap(
+    prob_matrix,
+    title='Bigram Transition Probabilities — Original Names',
+    filepath=os.path.join('output', 'heatmap_prob_original.png'),
+    vmax=float(prob_matrix.max()),
+)
+print('Saved output/heatmap_prob_original.png')
 
 generated = []
 while len(generated) < 25:
